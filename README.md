@@ -36,3 +36,4 @@ resten af koden i frontend rører vi ikke.
 - Byg checkout-flow
 - Integrér betaling (Quickpay/Stripe)
 # emil
+# emil
