@@ -1,0 +1,70 @@
+@* Reusable product card - used on the homepage, shop and collection pages. *@
+
+@if (OpenInPreview)
+{
+    <button type="button" class="product-card product-card--preview" @onclick="OpenPreview" aria-label="Preview @Product.Name">
+        <div class="product-card__frame">
+            <span class="archive-tag">@Product.ArchiveNumber</span>
+            @if (Product.IsOneOfOne)
+            {
+                <span class="one-of-one-tag">1 of 1</span>
+            }
+            <img src="@Product.ImageUrl" alt="@Product.Name" loading="lazy" />
+        </div>
+        <div class="product-card__body">
+            <div class="product-card__name">@Product.Name</div>
+            <div class="product-card__meta">@Product.Size · @Product.Color</div>
+        </div>
+    </button>
+
+    @if (showPreview)
+    {
+        <div class="product-preview-backdrop" @onclick="ClosePreview">
+            <div class="product-preview-dialog" @onclick:stopPropagation="true">
+                <button class="product-preview__close" type="button" @onclick="ClosePreview" aria-label="Close preview">×</button>
+                <img class="product-preview__image" src="@Product.ImageUrl" alt="@Product.Name" />
+                <div class="product-preview__content">
+                    <h3 class="product-preview__title">@Product.Name</h3>
+                    <p class="product-preview__meta">@Product.ArchiveNumber · @Product.Size · @Product.Color</p>
+                </div>
+            </div>
+        </div>
+    }
+}
+else
+{
+    <a href="@($"product/{Product.Id}")" class="product-card">
+        <div class="product-card__frame">
+            <span class="archive-tag">@Product.ArchiveNumber</span>
+            @if (Product.IsOneOfOne)
+            {
+                <span class="one-of-one-tag">1 of 1</span>
+            }
+            <img src="@Product.ImageUrl" alt="@Product.Name" loading="lazy" />
+        </div>
+        <div class="product-card__body">
+            <div class="product-card__name">@Product.Name</div>
+            <div class="product-card__meta">@Product.Size · @Product.Color</div>
+        </div>
+    </a>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public Product Product { get; set; } = default!;
+
+    [Parameter]
+    public bool OpenInPreview { get; set; }
+
+    private bool showPreview;
+
+    private void OpenPreview()
+    {
+        showPreview = true;
+    }
+
+    private void ClosePreview()
+    {
+        showPreview = false;
+    }
+}

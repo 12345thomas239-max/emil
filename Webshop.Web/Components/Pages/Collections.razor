@@ -1,0 +1,47 @@
+@page "/collections"
+@inject IProductService ProductService
+
+<PageTitle>Collections - OS Arkiv</PageTitle>
+
+<section class="section">
+    <div class="container">
+        <div class="eyebrow">01 → 07</div>
+        <h1 class="section__title mark-underline" style="margin-top:0.5rem; display:inline-block;">Collections</h1>
+        <p class="prose" style="margin-top:1.25rem;">
+            Every drop gets its own case number. Pick a collection to see every piece filed under it.
+        </p>
+
+        @if (collections is null)
+        {
+            <p class="empty-state">Loading collections …</p>
+        }
+        else
+        {
+            <div class="collections-grid" style="margin-top:2.5rem;">
+                @foreach (var collection in collections)
+                {
+                    <a href="@($"collections/{collection.Number}")" class="collection-card">
+                        <div class="collection-card__frame">
+                            <span class="collection-card__number">@collection.Number.ToString("00")</span>
+                            <img src="@collection.CoverImage" alt="@collection.Name" loading="lazy" />
+                        </div>
+                        <div class="collection-card__body">
+                            <div class="eyebrow">@collection.Season</div>
+                            <h2 class="collection-card__name">@collection.Name</h2>
+                            <p class="collection-card__tagline">@collection.Tagline</p>
+                        </div>
+                    </a>
+                }
+            </div>
+        }
+    </div>
+</section>
+
+@code {
+    private List<Collection>? collections;
+
+    protected override async Task OnInitializedAsync()
+    {
+        collections = await ProductService.GetCollectionsAsync();
+    }
+}

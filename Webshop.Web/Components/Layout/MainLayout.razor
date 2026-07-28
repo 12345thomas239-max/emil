@@ -1,0 +1,122 @@
+@inherits LayoutComponentBase
+@inject ICartService CartService
+@inject IAccountService AccountService
+@inject IJSRuntime JS
+@implements IDisposable
+
+<div class="page">
+    <header class="site-header">
+        <div class="site-header__bar">
+            <a href="/" class="site-header__logo">
+                <span class="site-header__logo-mark">O's Arkiv</span>
+            </a>
+
+            <nav class="site-nav" data-site-nav>
+                <ul class="site-nav__links">
+                    <li><NavLink href="/" Match="NavLinkMatch.All"><span class="nav-link-label">Home</span></NavLink></li>
+                    <li><NavLink href="collections"><span class="nav-link-label">Collections</span></NavLink></li>
+                    <li><NavLink href="shop"><span class="nav-link-label">Shop</span></NavLink></li>
+                    <li><NavLink href="about"><span class="nav-link-label">About</span></NavLink></li>
+                    <li><NavLink href="contact"><span class="nav-link-label">Contact</span></NavLink></li>
+                    <li><NavLink href="profile"><span class="nav-link-label">Profile</span></NavLink></li>
+                    @if (AccountService.CurrentAccount?.IsAdmin == true)
+                    {
+                        <li><NavLink href="admin"><span class="nav-link-label">Admin</span></NavLink></li>
+                    }
+                </ul>
+            </nav>
+
+            <div class="header-actions">
+                <a href="cart" class="cart-pill" aria-label="Cart">
+                    <span aria-hidden="true"><InkIcon Name="Cart" /></span>
+                    <span class="sr-only">Cart</span>
+                    <span class="cart-pill__count" aria-label="@($"{CartService.TotalItemCount} items")">@CartService.TotalItemCount</span>
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        @Body
+    </main>
+
+    <footer class="site-footer">
+        <div class="container">
+            <div class="site-footer__grid">
+                <div>
+                    <div class="site-footer__brand-mark">OS ARKIV</div>
+                    <p class="site-footer__brand-text">
+                        Every piece in the archive is rescued from a wardrobe, reworked in our
+                        workshop and catalogued as a one-off object. No new fabric — only new life.
+                    </p>
+                </div>
+
+                <div>
+                    <h4>Shop</h4>
+                    <ul>
+                        <li><a href="collections">Collections</a></li>
+                        <li><a href="shop">Shop all</a></li>
+                        <li><a href="about">About</a></li>
+                    </ul>
+                </div>
+
+                <div>
+                    <h4>Customer service</h4>
+                    <ul>
+                        <li><a href="contact">Contact</a></li>
+                        <li><a href="shipping-returns">Shipping &amp; returns</a></li>
+                        <li><a href="cart" aria-label="Cart">Cart</a></li>
+                    </ul>
+                </div>
+
+                <div>
+                    <h4>Follow the archive</h4>
+                    <ul>
+                        <li><a href="https://www.instagram.com/osarkiv/" target="_blank" rel="noopener">Instagram</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="site-footer__bottom">
+            <span>&copy; @DateTime.Now.Year OS Arkiv</span>
+            <span>All prices in DKK</span>
+        </div>
+    </footer>
+</div>
+
+@code {
+    private const string AccountSessionKey = "osarkiv-account-email";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RestoreAccountSessionAsync();
+        CartService.OnChange += StateHasChanged;
+        AccountService.OnChange += StateHasChanged;
+    }
+
+    private async Task RestoreAccountSessionAsync()
+    {
+        try
+        {
+            var email = await JS.InvokeAsync<string>("sessionStorage.getItem", AccountSessionKey);
+            if (!string.IsNullOrWhiteSpace(email) && AccountService.CurrentAccount?.Email != email)
+            {
+                if (AccountService.RestoreSession(email))
+                {
+                    StateHasChanged();
+                }
+            }
+        }
+        catch
+        {
+            // Ignore storage failures and continue with normal rendering.
+        }
+    }
+
+    public void Dispose()
+    {
+        CartService.OnChange -= StateHasChanged;
+        AccountService.OnChange -= StateHasChanged;
+    }
+}

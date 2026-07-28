@@ -1,0 +1,1156 @@
+@page "/admin"
+@rendermode InteractiveServer
+@implements IDisposable
+@inject IAccountService AccountService
+@inject AdminContentStore AdminContentStore
+@inject NavigationManager Navigation
+@inject IWebHostEnvironment Env
+
+<PageTitle>Admin - OS Arkiv</PageTitle>
+
+@if (showStatusMessage && !string.IsNullOrWhiteSpace(statusMessage))
+{
+    <div class="admin-toast @GetStatusMessageClass()" role="status" aria-live="polite">
+        <div class="admin-toast__content">
+            <span class="admin-toast__icon">@GetStatusIcon()</span>
+            <span>@statusMessage</span>
+        </div>
+        <button class="admin-toast__close" type="button" @onclick="CloseStatusMessage" aria-label="Close message">×</button>
+    </div>
+}
+
+@if (showDeleteConfirm)
+{
+    <div class="admin-confirm-backdrop" @onclick="CancelDeleteConfirmation">
+        <div class="admin-confirm-dialog" @onclick:stopPropagation="true">
+            <div class="admin-confirm-dialog__icon">!</div>
+            <h3>Delete @pendingDeleteTargetType?</h3>
+            <p>You are about to remove <strong>@pendingDeleteLabel</strong>. This action cannot be undone.</p>
+            <div class="admin-confirm-dialog__actions">
+                <button class="btn btn--secondary" type="button" @onclick="CancelDeleteConfirmation">Cancel</button>
+                <button class="btn" type="button" @onclick="ConfirmDelete">Delete</button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (AccountService.CurrentAccount?.IsAdmin != true)
+{
+    <section class="section">
+        <div class="container">
+            <div class="profile-empty-state" style="max-width: 40rem;">
+                <h1 class="section__title">Admin access required</h1>
+                <p class="prose">Sign in with the admin account to manage products and collections.</p>
+                <a class="btn" href="/profile">Go to profile</a>
+            </div>
+        </div>
+    </section>
+}
+else
+{
+    <section class="section">
+        <div class="container">
+            <div class="section__head">
+                <div>
+                    <h1 class="section__title">Inventory Management</h1>
+                </div>
+            </div>
+
+            <div class="admin-workspace">
+                <div class="admin-view-switcher" role="tablist" aria-label="Admin views">
+                    <button class="admin-view-switcher__button @(activeAdminView == "overview" ? "active" : "")" type="button" @onclick='@(() => SetAdminView("overview"))'>Overview</button>
+                    <button class="admin-view-switcher__button @(activeAdminView == "products" ? "active" : "")" type="button" @onclick='@(() => SetAdminView("products"))'>Products</button>
+                    <button class="admin-view-switcher__button @(activeAdminView == "collections" ? "active" : "")" type="button" @onclick='@(() => SetAdminView("collections"))'>Collections</button>
+                </div>
+
+                @if (activeAdminView == "overview")
+                {
+                    <div class="admin-overview-grid">
+                        <div class="admin-summary-card">
+                            <p class="admin-summary-card__label">Inventory overview</p>
+                            <div class="admin-summary-card__value">@products.Count products</div>
+                            <p class="admin-summary-card__meta">@collections.Count collections in the webshop</p>
+                        </div>
+                        <div class="admin-card admin-card--list admin-card--full @(showProductList ? "" : "admin-card--collapsed")">
+                            <div class="admin-card__header">
+                                <div>
+                                    <h3>Existing products</h3>
+                                    <p class="admin-card__subtitle">Search and choose a product to edit or delete.</p>
+                                </div>
+                                <button class="admin-toggle" type="button" @onclick="ToggleProductListVisibility" aria-expanded="@showProductList.ToString().ToLowerInvariant()">
+                                    <span class="admin-toggle__icon">@(showProductList ? "▾" : "▸")</span>
+                                    @(showProductList ? "Hide list" : "Show list")
+                                </button>
+                            </div>
+                            <div class="admin-card__body">
+                                <div class="admin-search">
+                                    <input class="admin-search__input" @bind="productSearch" @bind:event="oninput" placeholder="Search products by name, archive number, category or collection" />
+                                </div>
+                                @if (products.Count == 0)
+                                {
+                                    <p>No products are loaded yet.</p>
+                                }
+                                else if (!FilteredProducts.Any())
+                                {
+                                    <p>No products matched "@productSearch".</p>
+                                }
+                                else
+                                {
+                                    <ul class="admin-list">
+                                        @foreach (var product in FilteredProducts)
+                                        {
+                                            <li class="admin-list__item @(product.Id == productModel.Id ? "selected" : "") @(IsProductInActiveCollection(product) ? "collection-linked" : "")" @onclick="() => ToggleSelectProduct(product)">
+                                                <div class="admin-list__content">
+                                                    <button class="link-button" type="button" @onclick="() => ToggleSelectProduct(product)" @onclick:stopPropagation="true">
+                                                        @product.Name (@product.ArchiveNumber)
+                                                    </button>
+                                                    <div class="admin-list__meta">
+                                                        <span>@product.Category</span>
+                                                        <span class="admin-badge">@GetCollectionLabel(product.CollectionNumber)</span>
+                                                    </div>
+                                                </div>
+                                                <button class="btn btn--small btn--secondary" type="button" @onclick="() => StartDeleteProduct(product.Id, GetProductDeleteLabel(product))" @onclick:stopPropagation="true">Delete</button>
+                                            </li>
+                                        }
+                                    </ul>
+                                }
+                            </div>
+                        </div>
+
+                        <div class="admin-card admin-card--list admin-card--full @(showCollectionList ? "" : "admin-card--collapsed")">
+                            <div class="admin-card__header">
+                                <div>
+                                    <h3>Existing collections</h3>
+                                    <p class="admin-card__subtitle">Search and open a collection to edit.</p>
+                                </div>
+                                <button class="admin-toggle" type="button" @onclick="ToggleCollectionListVisibility" aria-expanded="@showCollectionList.ToString().ToLowerInvariant()">
+                                    <span class="admin-toggle__icon">@(showCollectionList ? "▾" : "▸")</span>
+                                    @(showCollectionList ? "Hide list" : "Show list")
+                                </button>
+                            </div>
+                            <div class="admin-card__body">
+                                <div class="admin-search">
+                                    <input class="admin-search__input" @bind="collectionSearch" @bind:event="oninput" placeholder="Search collections by name, season or number" />
+                                </div>
+                                @if (collections.Count == 0)
+                                {
+                                    <p>No collections are loaded yet.</p>
+                                }
+                                else if (!FilteredCollections.Any())
+                                {
+                                    <p>No collections matched "@collectionSearch".</p>
+                                }
+                                else
+                                {
+                                    <ul class="admin-list">
+                                        @foreach (var collection in FilteredCollections)
+                                        {
+                                            <li class="admin-list__item @(collection.Number == collectionModel.Number ? "selected" : "")" @onclick="() => ToggleSelectCollection(collection)">
+                                                <button class="link-button" type="button" @onclick="() => ToggleSelectCollection(collection)" @onclick:stopPropagation="true">
+                                                    @collection.Name (@collection.Number)
+                                                </button>
+                                                <button class="btn btn--small btn--secondary" type="button" @onclick="() => StartDeleteCollection(collection.Number, GetCollectionDeleteLabel(collection))" @onclick:stopPropagation="true">Delete</button>
+                                            </li>
+                                        }
+                                    </ul>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
+                else if (activeAdminView == "products")
+                {
+                    <div class="admin-workspace__left">
+                        <div class="admin-card admin-card--list @(showProductList ? "" : "admin-card--collapsed")">
+                            <div class="admin-card__header">
+                                <div>
+                                    <h3>Existing products</h3>
+                                    <p class="admin-card__subtitle">Search and choose a product to edit or delete.</p>
+                                </div>
+                                <button class="admin-toggle" type="button" @onclick="ToggleProductListVisibility" aria-expanded="@showProductList.ToString().ToLowerInvariant()">
+                                    <span class="admin-toggle__icon">@(showProductList ? "▾" : "▸")</span>
+                                    @(showProductList ? "Hide list" : "Show list")
+                                </button>
+                            </div>
+                            <div class="admin-card__body">
+                                <div class="admin-search">
+                                    <input class="admin-search__input" @bind="productSearch" @bind:event="oninput" placeholder="Search products by name, archive number, category or collection" />
+                                </div>
+                                @if (products.Count == 0)
+                                {
+                                    <p>No products are loaded yet.</p>
+                                }
+                                else if (!FilteredProducts.Any())
+                                {
+                                    <p>No products matched "@productSearch".</p>
+                                }
+                                else
+                                {
+                                    <ul class="admin-list">
+                                        @foreach (var product in FilteredProducts)
+                                        {
+                                            <li class="admin-list__item @(product.Id == productModel.Id ? "selected" : "") @(IsProductInActiveCollection(product) ? "collection-linked" : "")" @onclick="() => ToggleSelectProduct(product)">
+                                                <div class="admin-list__content">
+                                                    <button class="link-button" type="button" @onclick="() => ToggleSelectProduct(product)" @onclick:stopPropagation="true">
+                                                        @product.Name (@product.ArchiveNumber)
+                                                    </button>
+                                                    <div class="admin-list__meta">
+                                                        <span>@product.Category</span>
+                                                        <span class="admin-badge">@GetCollectionLabel(product.CollectionNumber)</span>
+                                                    </div>
+                                                </div>
+                                                <button class="btn btn--small btn--secondary" type="button" @onclick="() => StartDeleteProduct(product.Id, GetProductDeleteLabel(product))" @onclick:stopPropagation="true">Delete</button>
+                                            </li>
+                                        }
+                                    </ul>
+                                }
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="admin-workspace__right">
+                        <div class="admin-card admin-card--form">
+                            <div class="admin-card__header">
+                                <div>
+                                    <h3>Product editor</h3>
+                                    <p class="admin-card__subtitle">Separate product details from the list for a cleaner workflow.</p>
+                                </div>
+                            </div>
+                            <div class="admin-card__body">
+                                <EditForm Model="productModel" OnValidSubmit="HandleSaveProduct">
+                                    <div class="form-grid">
+                                        <div class="form-field">
+                                            <label>Name</label>
+                                            <input @bind="productModel.Name" />
+                                        </div>
+                                        <div class="form-field">
+                                            <label>Archive number</label>
+                                            <input @bind="productModel.ArchiveNumber" />
+                                        </div>
+                                    </div>
+                                    <div class="form-grid">
+                                        <div class="form-field">
+                                            <label>Category</label>
+                                            <select @bind="productModel.Category">
+                                                <option value="">Select category</option>
+                                                @foreach (var category in AvailableProductCategories)
+                                                {
+                                                    <option value="@category">@category</option>
+                                                }
+                                            </select>
+                                        </div>
+                                        <div class="form-field">
+                                            <label>Collection</label>
+                                            <select @bind="productModel.CollectionNumber">
+                                                <option value="0">Unassigned</option>
+                                                @foreach (var collection in collections)
+                                                {
+                                                    <option value="@collection.Number">@collection.Name (@collection.Number)</option>
+                                                }
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="form-field">
+                                        <label>Description</label>
+                                        <textarea @bind="productModel.Description" rows="2"></textarea>
+                                    </div>
+                                    <div class="form-grid">
+                                        <div class="form-field">
+                                            <label>Price</label>
+                                            <input type="number" step="0.01" @bind="productModel.Price" />
+                                        </div>
+                                        <div class="form-field">
+                                            <label>Stock</label>
+                                            <input type="number" @bind="productModel.StockQuantity" />
+                                        </div>
+                                    </div>
+                                    <div class="form-grid">
+                                        <div class="form-field">
+                                            <label>Size</label>
+                                            <input @bind="productModel.Size" />
+                                        </div>
+                                        <div class="form-field">
+                                            <label>Color</label>
+                                            <input @bind="productModel.Color" />
+                                        </div>
+                                    </div>
+                                    <div class="form-field">
+                                        <label>Material</label>
+                                        <input @bind="productModel.Material" />
+                                    </div>
+                                    <div class="form-field">
+                                        <label>Origin story</label>
+                                        <textarea @bind="productModel.OriginStory" rows="2"></textarea>
+                                    </div>
+                                    <div class="form-field">
+                                        <label>Upload images</label>
+                                        <InputFile Multiple OnChange="HandleProductImageSelection" />
+                                        <p class="form-note" style="margin-top:0.5rem;">Selecting a file will upload it automatically and add the generated link to the form.</p>
+                                    </div>
+                                    <div class="form-field">
+                                        <label>Image URLs (one per line)</label>
+                                        <textarea @bind="imageText" rows="3"></textarea>
+                                    </div>
+                                    <div class="form-field">
+                                        <label>Primary image URL</label>
+                                        <input @bind="productModel.ImageUrl" />
+                                    </div>
+                                    @if (!string.IsNullOrWhiteSpace(imageText))
+                                    {
+                                        <div class="gallery-preview">
+                                            <div class="gallery-preview__title">Gallery image links</div>
+                                            @foreach (var imageUrl in GetGalleryImages())
+                                            {
+                                                <div class="gallery-preview__item">
+                                                    <a href="@imageUrl" target="_blank" rel="noopener noreferrer">@imageUrl</a>
+                                                </div>
+                                            }
+                                        </div>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(productUploadStatus))
+                                    {
+                                        <p class="form-note" style="margin:0 0 0.8rem;">@productUploadStatus</p>
+                                    }
+                                    <div class="form-grid">
+                                        <button class="btn btn--block" type="submit">@(string.IsNullOrWhiteSpace(productModel.Id) ? "Create product" : "Update product")</button>
+                                        @if (!string.IsNullOrWhiteSpace(productModel.Id))
+                                        {
+                                            <button class="btn btn--secondary" type="button" @onclick="ResetProductForm">Clear selection</button>
+                                        }
+                                    </div>
+                                </EditForm>
+                            </div>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="admin-workspace__left">
+                        <div class="admin-card admin-card--list @(showCollectionList ? "" : "admin-card--collapsed")">
+                            <div class="admin-card__header">
+                                <div>
+                                    <h3>Existing collections</h3>
+                                    <p class="admin-card__subtitle">Search and open a collection to edit.</p>
+                                </div>
+                                <button class="admin-toggle" type="button" @onclick="ToggleCollectionListVisibility" aria-expanded="@showCollectionList.ToString().ToLowerInvariant()">
+                                    <span class="admin-toggle__icon">@(showCollectionList ? "▾" : "▸")</span>
+                                    @(showCollectionList ? "Hide list" : "Show list")
+                                </button>
+                            </div>
+                            <div class="admin-card__body">
+                                <div class="admin-search">
+                                    <input class="admin-search__input" @bind="collectionSearch" @bind:event="oninput" placeholder="Search collections by name, season or number" />
+                                </div>
+                                @if (collections.Count == 0)
+                                {
+                                    <p>No collections are loaded yet.</p>
+                                }
+                                else if (!FilteredCollections.Any())
+                                {
+                                    <p>No collections matched "@collectionSearch".</p>
+                                }
+                                else
+                                {
+                                    <ul class="admin-list">
+                                        @foreach (var collection in FilteredCollections)
+                                        {
+                                            <li class="admin-list__item @(collection.Number == collectionModel.Number ? "selected" : "")" @onclick="() => ToggleSelectCollection(collection)">
+                                                <button class="link-button" type="button" @onclick="() => ToggleSelectCollection(collection)" @onclick:stopPropagation="true">
+                                                    @collection.Name (@collection.Number)
+                                                </button>
+                                                <button class="btn btn--small btn--secondary" type="button" @onclick="() => StartDeleteCollection(collection.Number, GetCollectionDeleteLabel(collection))" @onclick:stopPropagation="true">Delete</button>
+                                            </li>
+                                        }
+                                    </ul>
+                                }
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="admin-workspace__right">
+                        <div class="admin-card admin-card--form">
+                            <div class="admin-card__header">
+                                <div>
+                                    <h3>Collection editor</h3>
+                                    <p class="admin-card__subtitle">Edit collection details separately from the list.</p>
+                                </div>
+                            </div>
+                            <div class="admin-card__body">
+                                <EditForm Model="collectionModel" OnValidSubmit="HandleCreateCollection">
+                                    <div class="form-field">
+                                        <label>Number</label>
+                                        <input type="number" @bind="collectionModel.Number" />
+                                    </div>
+                                    <div class="form-field">
+                                        <label>Name</label>
+                                        <input @bind="collectionModel.Name" />
+                                    </div>
+                                    <div class="form-field">
+                                        <label>Season</label>
+                                        <input @bind="collectionModel.Season" />
+                                    </div>
+                                    <div class="form-field">
+                                        <label>Tagline</label>
+                                        <input @bind="collectionModel.Tagline" />
+                                    </div>
+                                    <div class="form-field">
+                                        <label>Upload cover image</label>
+                                        <InputFile OnChange="HandleCollectionImageSelection" />
+                                        <p class="form-note" style="margin-top:0.5rem;">Selecting a file will upload it automatically and fill the cover image field.</p>
+                                    </div>
+                                    <div class="form-field">
+                                        <label>Cover image URL</label>
+                                        <input @bind="collectionModel.CoverImage" />
+                                    </div>
+                                    @if (!string.IsNullOrWhiteSpace(collectionUploadStatus))
+                                    {
+                                        <p class="form-note" style="margin:0 0 0.8rem;">@collectionUploadStatus</p>
+                                    }
+                                    <div class="form-grid">
+                                        <button class="btn btn--block" type="submit">@(IsEditingCollection ? "Update collection" : "Create collection")</button>
+                                        <button class="btn btn--secondary" type="button" @onclick="ResetCollectionForm">Clear selection</button>
+                                    </div>
+                                </EditForm>
+
+                                @if (collectionModel.Number > 0)
+                                {
+                                    <div class="form-field">
+                                        <label>Products in this collection</label>
+                                        @if (ProductsInCurrentCollection.Any())
+                                        {
+                                            <ul class="admin-list admin-list--compact">
+                                                @foreach (var product in ProductsInCurrentCollection)
+                                                {
+                                                    <li class="admin-list__item">
+                                                        <div>
+                                                            <button class="link-button" type="button" @onclick="() => SelectProduct(product)">
+                                                                @product.Name (@product.ArchiveNumber)
+                                                            </button>
+                                                        </div>
+                                                        <button class="btn btn--small btn--secondary" type="button" @onclick="() => HandleRemoveProductFromCollection(product.Id)">Remove</button>
+                                                    </li>
+                                                }
+                                            </ul>
+                                        }
+                                        else
+                                        {
+                                            <p>No products are assigned to this collection yet.</p>
+                                        }
+                                    </div>
+
+                                    <div class="form-field">
+                                        <label>Add product to collection</label>
+                                        <div class="collection-assign-row">
+                                            <select @bind="selectedProductToAssignId">
+                                                <option value="">Select a product</option>
+                                                @foreach (var product in ProductsNotInCurrentCollection)
+                                                {
+                                                    <option value="@product.Id">@product.Name (@product.ArchiveNumber) — @GetCollectionLabel(product.CollectionNumber)</option>
+                                                }
+                                            </select>
+                                            <button class="btn btn--small" type="button" @onclick="HandleAssignProductToCollection">Assign</button>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </section>
+}
+
+@code {
+    private List<Product> products = new();
+    private List<Collection> collections = new();
+    private ProductFormModel productModel = new();
+    private CollectionFormModel collectionModel = new();
+    private string selectedProductToAssignId = string.Empty;
+    private string activeAdminView = "overview";
+    private bool showProductList;
+    private bool showCollectionList;
+    private bool showDeleteConfirm;
+    private string pendingDeleteTargetType = string.Empty;
+    private string pendingDeleteLabel = string.Empty;
+    private string pendingDeleteProductId = string.Empty;
+    private int pendingDeleteCollectionNumber;
+    private string productSearch = string.Empty;
+    private string collectionSearch = string.Empty;
+    private string imageText = string.Empty;
+    private string statusMessage = string.Empty;
+    private string statusMessageType = "info";
+    private bool showStatusMessage;
+    private System.Threading.Timer? statusTimer;
+    private string productUploadStatus = string.Empty;
+    private string collectionUploadStatus = string.Empty;
+
+    private IEnumerable<Product> ProductsInCurrentCollection => products.Where(p => p.CollectionNumber == collectionModel.Number);
+    private IEnumerable<Product> ProductsNotInCurrentCollection => products.Where(p => p.CollectionNumber != collectionModel.Number);
+    private IEnumerable<Product> FilteredProducts
+    {
+        get
+        {
+            var query = products.AsEnumerable();
+
+            if (!string.IsNullOrWhiteSpace(productSearch))
+            {
+                query = query.Where(p => p.Name.Contains(productSearch, StringComparison.OrdinalIgnoreCase)
+                    || p.ArchiveNumber.Contains(productSearch, StringComparison.OrdinalIgnoreCase)
+                    || p.Category.Contains(productSearch, StringComparison.OrdinalIgnoreCase)
+                    || GetCollectionLabel(p.CollectionNumber).Contains(productSearch, StringComparison.OrdinalIgnoreCase));
+            }
+
+            var activeCollectionNumber = collectionModel.Number > 0 ? collectionModel.Number : productModel.CollectionNumber;
+            if (activeCollectionNumber > 0)
+            {
+                query = query.OrderByDescending(p => p.CollectionNumber == activeCollectionNumber)
+                    .ThenBy(p => p.Name, StringComparer.OrdinalIgnoreCase);
+            }
+            else
+            {
+                query = query.OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase);
+            }
+
+            return query;
+        }
+    }
+
+    private IEnumerable<Collection> FilteredCollections => string.IsNullOrWhiteSpace(collectionSearch)
+        ? collections
+        : collections.Where(c => c.Name.Contains(collectionSearch, StringComparison.OrdinalIgnoreCase)
+            || c.Season.Contains(collectionSearch, StringComparison.OrdinalIgnoreCase)
+            || c.Tagline.Contains(collectionSearch, StringComparison.OrdinalIgnoreCase)
+            || c.Number.ToString().Contains(collectionSearch, StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadProductsAsync();
+        await LoadCollectionsAsync();
+    }
+
+    private async Task LoadProductsAsync()
+    {
+        try
+        {
+            using var client = new HttpClient();
+            var response = await client.GetAsync(Navigation.ToAbsoluteUri("/api/admin/products"));
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<List<Product>>();
+                products = result ?? new List<Product>();
+            }
+        }
+        catch
+        {
+            products = new List<Product>();
+        }
+    }
+
+    private async Task LoadCollectionsAsync()
+    {
+        try
+        {
+            using var client = new HttpClient();
+            var response = await client.GetAsync(Navigation.ToAbsoluteUri("/api/admin/collections"));
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<List<Collection>>();
+                collections = result ?? new List<Collection>();
+            }
+        }
+        catch
+        {
+            collections = new List<Collection>();
+        }
+    }
+
+    private void SelectProduct(Product product)
+    {
+        productModel = new ProductFormModel(product);
+        imageText = string.Join("\n", product.GalleryImages ?? new List<string>());
+        productUploadStatus = string.Empty;
+        activeAdminView = "products";
+        if (product.CollectionNumber > 0)
+        {
+            var matchingCollection = collections.FirstOrDefault(c => c.Number == product.CollectionNumber);
+            collectionModel = matchingCollection is not null
+                ? new CollectionFormModel(matchingCollection)
+                : new CollectionFormModel();
+        }
+        else
+        {
+            collectionModel = new CollectionFormModel();
+        }
+        collectionUploadStatus = string.Empty;
+        SetStatusMessage($"Editing product '{product.Name}'.", "info");
+    }
+
+    private void ToggleSelectProduct(Product product)
+    {
+        if (!string.IsNullOrWhiteSpace(productModel.Id) && productModel.Id == product.Id)
+        {
+            ResetProductForm();
+            return;
+        }
+
+        SelectProduct(product);
+    }
+
+    private void SelectCollection(Collection collection)
+    {
+        collectionModel = new CollectionFormModel(collection);
+        collectionUploadStatus = string.Empty;
+        activeAdminView = "collections";
+        SetStatusMessage($"Editing collection '{collection.Name}'.", "info");
+    }
+
+    private void ToggleSelectCollection(Collection collection)
+    {
+        if (collectionModel.Number > 0 && collectionModel.Number == collection.Number)
+        {
+            ResetCollectionForm();
+            return;
+        }
+
+        SelectCollection(collection);
+    }
+
+    private void ResetProductForm()
+    {
+        productModel = new ProductFormModel();
+        imageText = string.Empty;
+        productUploadStatus = string.Empty;
+        ClearStatusMessage();
+    }
+
+    private void ResetCollectionForm()
+    {
+        collectionModel = new CollectionFormModel();
+        collectionUploadStatus = string.Empty;
+        ClearStatusMessage();
+    }
+
+    private bool IsEditingCollection => collectionModel.Number > 0 && collections.Any(c => c.Number == collectionModel.Number);
+
+    private void ToggleProductListVisibility()
+    {
+        showProductList = !showProductList;
+        if (!showProductList)
+        {
+            ResetProductForm();
+        }
+    }
+
+    private void ToggleCollectionListVisibility()
+    {
+        showCollectionList = !showCollectionList;
+        if (!showCollectionList)
+        {
+            ResetCollectionForm();
+        }
+    }
+
+    private async Task HandleProductImageSelection(InputFileChangeEventArgs args)
+    {
+        var files = args.GetMultipleFiles();
+        if (files.Count == 0)
+        {
+            productUploadStatus = "No files selected yet.";
+            return;
+        }
+
+        productUploadStatus = "Uploading image(s)...";
+        var uploadedUrls = new List<string>();
+
+        try
+        {
+            foreach (var file in files)
+            {
+                var uploadedUrl = await UploadFileAsync(file);
+                if (!string.IsNullOrWhiteSpace(uploadedUrl))
+                {
+                    uploadedUrls.Add(uploadedUrl);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            productUploadStatus = $"Upload failed: {ex.Message}";
+            return;
+        }
+
+        if (uploadedUrls.Count == 0)
+        {
+            productUploadStatus = "The selected image(s) could not be uploaded.";
+            return;
+        }
+
+        var existing = imageText
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(item => !string.IsNullOrWhiteSpace(item))
+            .ToList();
+
+        var combined = existing.Concat(uploadedUrls).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        imageText = string.Join(Environment.NewLine, combined);
+        productModel.ImageUrl = uploadedUrls[0];
+        productUploadStatus = $"Uploaded {uploadedUrls.Count} image(s) and filled the form with generated links.";
+    }
+
+    private async Task HandleSaveProduct()
+    {
+        var product = new Product
+        {
+            Id = productModel.Id,
+            ArchiveNumber = productModel.ArchiveNumber,
+            Name = productModel.Name,
+            Description = productModel.Description,
+            Category = productModel.Category,
+            CollectionNumber = productModel.CollectionNumber,
+            Price = productModel.Price,
+            Size = productModel.Size,
+            Color = productModel.Color,
+            Material = productModel.Material,
+            OriginStory = productModel.OriginStory,
+            StockQuantity = productModel.StockQuantity,
+            IsOneOfOne = true,
+            IsFeatured = false,
+            ImageUrl = productModel.ImageUrl,
+            GalleryImages = imageText
+                .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .ToList()
+        };
+
+        using var client = new HttpClient();
+        HttpResponseMessage response;
+        if (string.IsNullOrWhiteSpace(product.Id))
+        {
+            response = await client.PostAsJsonAsync(Navigation.ToAbsoluteUri("/api/admin/products"), product);
+        }
+        else
+        {
+            response = await client.PutAsJsonAsync(Navigation.ToAbsoluteUri($"/api/admin/products/{product.Id}"), product);
+        }
+
+        if (response.IsSuccessStatusCode)
+        {
+            SetStatusMessage(string.IsNullOrWhiteSpace(product.Id) ? "Product created successfully." : "Product updated successfully.", "success");
+            await LoadProductsAsync();
+            ResetProductForm();
+        }
+        else
+        {
+            SetStatusMessage("Product could not be saved.", "error");
+        }
+
+        productUploadStatus = string.Empty;
+    }
+
+    private void StartDeleteProduct(string id, string label)
+    {
+        pendingDeleteTargetType = "product";
+        pendingDeleteProductId = id;
+        pendingDeleteCollectionNumber = 0;
+        pendingDeleteLabel = label;
+        showDeleteConfirm = true;
+    }
+
+    private void StartDeleteCollection(int number, string label)
+    {
+        pendingDeleteTargetType = "collection";
+        pendingDeleteProductId = string.Empty;
+        pendingDeleteCollectionNumber = number;
+        pendingDeleteLabel = label;
+        showDeleteConfirm = true;
+    }
+
+    private void CancelDeleteConfirmation()
+    {
+        showDeleteConfirm = false;
+        pendingDeleteTargetType = string.Empty;
+        pendingDeleteLabel = string.Empty;
+        pendingDeleteProductId = string.Empty;
+        pendingDeleteCollectionNumber = 0;
+    }
+
+    private async Task ConfirmDelete()
+    {
+        if (pendingDeleteTargetType == "product")
+        {
+            await HandleDeleteProduct(pendingDeleteProductId);
+        }
+        else if (pendingDeleteTargetType == "collection")
+        {
+            await HandleDeleteCollection(pendingDeleteCollectionNumber);
+        }
+
+        CancelDeleteConfirmation();
+    }
+
+    private async Task HandleDeleteProduct(string id)
+    {
+        using var client = new HttpClient();
+        var response = await client.DeleteAsync(Navigation.ToAbsoluteUri($"/api/admin/products/{id}"));
+        if (response.IsSuccessStatusCode)
+        {
+            SetStatusMessage("Product deleted successfully.", "success");
+            await LoadProductsAsync();
+            if (productModel.Id == id)
+            {
+                ResetProductForm();
+            }
+        }
+        else
+        {
+            SetStatusMessage("Product could not be deleted.", "error");
+        }
+    }
+
+    private async Task HandleCreateCollection()
+    {
+        var collection = new Collection
+        {
+            Number = collectionModel.Number,
+            Name = collectionModel.Name,
+            Season = collectionModel.Season,
+            Tagline = collectionModel.Tagline,
+            CoverImage = collectionModel.CoverImage
+        };
+
+        using var client = new HttpClient();
+        HttpResponseMessage response;
+        var existingCollection = collections.FirstOrDefault(c => c.Number == collection.Number);
+        if (existingCollection is null)
+        {
+            response = await client.PostAsJsonAsync(Navigation.ToAbsoluteUri("/api/admin/collections"), collection);
+        }
+        else
+        {
+            response = await client.PutAsJsonAsync(Navigation.ToAbsoluteUri($"/api/admin/collections/{collection.Number}"), collection);
+        }
+
+        if (response.IsSuccessStatusCode)
+        {
+            SetStatusMessage(collection.Number <= 0 ? "Collection created successfully." : "Collection updated successfully.", "success");
+            await LoadCollectionsAsync();
+            ResetCollectionForm();
+        }
+        else
+        {
+            SetStatusMessage("Collection could not be saved.", "error");
+        }
+
+        collectionUploadStatus = string.Empty;
+    }
+
+    private async Task HandleDeleteCollection(int number)
+    {
+        using var client = new HttpClient();
+        var response = await client.DeleteAsync(Navigation.ToAbsoluteUri($"/api/admin/collections/{number}"));
+        if (response.IsSuccessStatusCode)
+        {
+            SetStatusMessage("Collection deleted successfully.", "success");
+            await LoadCollectionsAsync();
+            if (collectionModel.Number == number)
+            {
+                ResetCollectionForm();
+            }
+        }
+        else
+        {
+            SetStatusMessage("Collection could not be deleted.", "error");
+        }
+    }
+
+    private async Task HandleCollectionImageSelection(InputFileChangeEventArgs args)
+    {
+        var file = args.File;
+        if (file is null)
+        {
+            collectionUploadStatus = "No file selected yet.";
+            return;
+        }
+
+        collectionUploadStatus = "Uploading cover image...";
+
+        try
+        {
+            var uploadedUrl = await UploadFileAsync(file);
+            if (string.IsNullOrWhiteSpace(uploadedUrl))
+            {
+                collectionUploadStatus = "The cover image could not be uploaded.";
+                return;
+            }
+
+            collectionModel.CoverImage = uploadedUrl;
+            collectionUploadStatus = "Cover image URL generated and inserted into the form.";
+        }
+        catch (Exception ex)
+        {
+            collectionUploadStatus = $"Upload failed: {ex.Message}";
+        }
+    }
+
+    private async Task<string?> UploadFileAsync(IBrowserFile file)
+    {
+        var uploadsFolder = Path.Combine(Env.WebRootPath, "uploads");
+        Directory.CreateDirectory(uploadsFolder);
+
+        var safeName = Path.GetFileNameWithoutExtension(file.Name)?.Replace(" ", "-") ?? "upload";
+        var extension = Path.GetExtension(file.Name);
+        var storedFileName = $"{safeName}-{Guid.NewGuid():N}{extension}";
+        var fullPath = Path.Combine(uploadsFolder, storedFileName);
+
+        await using var stream = file.OpenReadStream(20 * 1024 * 1024);
+        await using var targetStream = File.Create(fullPath);
+        await stream.CopyToAsync(targetStream);
+
+        var baseUrl = new Uri(Navigation.BaseUri).GetLeftPart(UriPartial.Authority);
+        return $"{baseUrl}/uploads/{storedFileName}";
+    }
+
+    private async Task HandleAssignProductToCollection()
+    {
+        if (collectionModel.Number <= 0 || string.IsNullOrWhiteSpace(selectedProductToAssignId))
+        {
+            SetStatusMessage("Choose a collection and a product to assign.", "info");
+            return;
+        }
+
+        var product = products.FirstOrDefault(p => p.Id == selectedProductToAssignId);
+        if (product is null)
+        {
+            SetStatusMessage("Selected product could not be found.", "error");
+            return;
+        }
+
+        product.CollectionNumber = collectionModel.Number;
+        using var client = new HttpClient();
+        var response = await client.PutAsJsonAsync(Navigation.ToAbsoluteUri($"/api/admin/products/{product.Id}"), product);
+        if (response.IsSuccessStatusCode)
+        {
+            SetStatusMessage($"Product '{product.Name}' assigned to collection {collectionModel.Number}.", "success");
+            selectedProductToAssignId = string.Empty;
+            await LoadProductsAsync();
+        }
+        else
+        {
+            SetStatusMessage("Could not assign the product to the collection.", "error");
+        }
+    }
+
+    private async Task HandleRemoveProductFromCollection(string productId)
+    {
+        var product = products.FirstOrDefault(p => p.Id == productId);
+        if (product is null)
+        {
+            SetStatusMessage("Product could not be found.", "error");
+            return;
+        }
+
+        product.CollectionNumber = 0;
+        using var client = new HttpClient();
+        var response = await client.PutAsJsonAsync(Navigation.ToAbsoluteUri($"/api/admin/products/{product.Id}"), product);
+        if (response.IsSuccessStatusCode)
+        {
+            SetStatusMessage($"Product '{product.Name}' removed from the collection.", "success");
+            await LoadProductsAsync();
+        }
+        else
+        {
+            SetStatusMessage("Could not remove the product from the collection.", "error");
+        }
+    }
+
+    private void SetAdminView(string view)
+    {
+        activeAdminView = view;
+    }
+
+    private void SetStatusMessage(string message, string type = "info")
+    {
+        statusMessage = message;
+        statusMessageType = type;
+        showStatusMessage = true;
+
+        statusTimer?.Dispose();
+        statusTimer = new System.Threading.Timer(_ =>
+        {
+            InvokeAsync(() =>
+            {
+                showStatusMessage = false;
+                statusMessage = string.Empty;
+                statusMessageType = "info";
+                StateHasChanged();
+            });
+        }, null, 4000, System.Threading.Timeout.Infinite);
+    }
+
+    private void CloseStatusMessage()
+    {
+        statusTimer?.Dispose();
+        statusTimer = null;
+        showStatusMessage = false;
+        statusMessage = string.Empty;
+        statusMessageType = "info";
+    }
+
+    private void ClearStatusMessage()
+    {
+        statusTimer?.Dispose();
+        statusTimer = null;
+        showStatusMessage = false;
+        statusMessage = string.Empty;
+        statusMessageType = "info";
+    }
+
+    private string GetStatusMessageClass()
+    {
+        return statusMessageType switch
+        {
+            "success" => "admin-toast--success",
+            "error" => "admin-toast--error",
+            _ => "admin-toast--info"
+        };
+    }
+
+    private string GetStatusIcon()
+    {
+        return statusMessageType switch
+        {
+            "success" => "✓",
+            "error" => "!",
+            _ => "i"
+        };
+    }
+
+    public void Dispose()
+    {
+        statusTimer?.Dispose();
+    }
+
+    private bool IsProductInActiveCollection(Product product)
+    {
+        var activeCollectionNumber = collectionModel.Number > 0 ? collectionModel.Number : productModel.CollectionNumber;
+        return activeCollectionNumber > 0 && product.CollectionNumber == activeCollectionNumber;
+    }
+
+    private string GetCollectionLabel(int collectionNumber)
+    {
+        if (collectionNumber <= 0)
+        {
+            return "Unassigned";
+        }
+
+        var collection = collections.FirstOrDefault(c => c.Number == collectionNumber);
+        return collection is not null ? $"{collection.Name} ({collection.Number})" : $"Collection {collectionNumber}";
+    }
+
+    private string GetProductDeleteLabel(Product product)
+    {
+        return $"{product.Name} ({product.ArchiveNumber})";
+    }
+
+    private string GetCollectionDeleteLabel(Collection collection)
+    {
+        return $"{collection.Name} ({collection.Number})";
+    }
+
+    private static readonly string[] AvailableProductCategories = new[]
+    {
+        "Jackets",
+        "Tops",
+        "Bottoms",
+        "Headwear",
+        "Accessories"
+    };
+
+    private IEnumerable<string> GetGalleryImages()
+    {
+        return imageText
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Distinct(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private sealed class ProductFormModel
+    {
+        public string Id { get; set; } = string.Empty;
+        public string ArchiveNumber { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public string Category { get; set; } = string.Empty;
+        public int CollectionNumber { get; set; }
+        public decimal Price { get; set; }
+        public string Size { get; set; } = string.Empty;
+        public string Color { get; set; } = string.Empty;
+        public string Material { get; set; } = string.Empty;
+        public string OriginStory { get; set; } = string.Empty;
+        public int StockQuantity { get; set; } = 1;
+        public string ImageUrl { get; set; } = string.Empty;
+
+        public ProductFormModel() { }
+
+        public ProductFormModel(Product product)
+        {
+            Id = product.Id;
+            ArchiveNumber = product.ArchiveNumber;
+            Name = product.Name;
+            Description = product.Description;
+            Category = product.Category;
+            CollectionNumber = product.CollectionNumber;
+            Price = product.Price;
+            Size = product.Size;
+            Color = product.Color;
+            Material = product.Material;
+            OriginStory = product.OriginStory;
+            StockQuantity = product.StockQuantity;
+            ImageUrl = product.ImageUrl;
+        }
+
+        public void Reset()
+        {
+            Id = string.Empty;
+            ArchiveNumber = string.Empty;
+            Name = string.Empty;
+            Description = string.Empty;
+            Category = string.Empty;
+            CollectionNumber = 0;
+            Price = 0m;
+            Size = string.Empty;
+            Color = string.Empty;
+            Material = string.Empty;
+            OriginStory = string.Empty;
+            StockQuantity = 1;
+            ImageUrl = string.Empty;
+        }
+    }
+
+    private sealed class CollectionFormModel
+    {
+        public int Number { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string Season { get; set; } = string.Empty;
+        public string Tagline { get; set; } = string.Empty;
+        public string CoverImage { get; set; } = string.Empty;
+
+        public CollectionFormModel() { }
+
+        public CollectionFormModel(Collection collection)
+        {
+            Number = collection.Number;
+            Name = collection.Name;
+            Season = collection.Season;
+            Tagline = collection.Tagline;
+            CoverImage = collection.CoverImage;
+        }
+
+        public void Reset()
+        {
+            Number = 0;
+            Name = string.Empty;
+            Season = string.Empty;
+            Tagline = string.Empty;
+            CoverImage = string.Empty;
+        }
+    }
+}

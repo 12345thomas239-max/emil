@@ -1,0 +1,61 @@
+@page "/collections/{Number:int}"
+@inject IProductService ProductService
+
+<PageTitle>@(collection?.Name ?? "Collection") - OS Arkiv</PageTitle>
+
+<section class="section">
+    <div class="container">
+        <a href="collections" class="collection-back">← Back to collections</a>
+
+        @if (collection is null)
+        {
+            <p class="empty-state">@(notFound ? "That collection isn't in the archive." : "Loading collection …")</p>
+        }
+        else
+        {
+            <div class="collection-head__number">@collection.Season</div>
+            <h1 class="collection-head__title">@collection.Name</h1>
+            <p class="collection-head__tagline">@collection.Tagline</p>
+
+            @if (pieces is null)
+            {
+                <p class="empty-state" style="margin-top:2.5rem;">Loading pieces …</p>
+            }
+            else if (pieces.Count == 0)
+            {
+                <p class="empty-state" style="margin-top:2.5rem;">No pieces catalogued in this collection yet.</p>
+            }
+            else
+            {
+                <div class="product-grid" style="margin-top:3rem;">
+                    @foreach (var product in pieces)
+                    {
+                        <ProductCard Product="product" OpenInPreview="true" />
+                    }
+                </div>
+            }
+        }
+    </div>
+</section>
+
+@code {
+    [Parameter]
+    public int Number { get; set; }
+
+    private Collection? collection;
+    private List<Product>? pieces;
+    private bool notFound;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        collection = await ProductService.GetCollectionByNumberAsync(Number);
+
+        if (collection is null)
+        {
+            notFound = true;
+            return;
+        }
+
+        pieces = await ProductService.GetProductsByCollectionAsync(Number);
+    }
+}

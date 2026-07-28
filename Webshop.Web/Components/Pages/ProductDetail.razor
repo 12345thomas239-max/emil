@@ -1,0 +1,161 @@
+@page "/product/{Id}"
+@inject IProductService ProductService
+@inject ICartService CartService
+
+<PageTitle>@(product?.Name ?? "Product") - OS Arkiv</PageTitle>
+
+@if (product is null)
+{
+    <div class="container section">
+        <p class="empty-state">@(notFound ? "This piece isn't in the archive." : "Loading piece …")</p>
+    </div>
+}
+else
+{
+    <section class="section">
+        <div class="container">
+            <div class="board">
+                <svg class="string-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
+                    <path d="M42 22 C 55 10, 60 30, 54 40" stroke="#a3271c" stroke-width="0.35" fill="none" opacity="0.55" />
+                </svg>
+
+                <div class="board__grid">
+                    <div>
+                        <div class="polaroid">
+                            <div class="pin" style="top:-14px; left:calc(50% - 11px);">
+                                <svg viewBox="0 0 24 24"><circle cx="12" cy="9" r="6" fill="#a3271c" /><rect x="10.5" y="13" width="3" height="9" fill="#6b1e14" /></svg>
+                            </div>
+                            <img src="@activeImage" alt="@product.Name" />
+                            <div class="polaroid__caption">@product.ArchiveNumber</div>
+                        </div>
+
+                        @if (product.GalleryImages.Count > 1)
+                        {
+                            <div class="polaroid-thumbs">
+                                @foreach (var image in product.GalleryImages)
+                                {
+                                    <button type="button" class="@(image == activeImage ? "active" : "")" @onclick="() => activeImage = image">
+                                        <img src="@image" alt="" />
+                                    </button>
+                                }
+                            </div>
+                        }
+                    </div>
+
+                    <div>
+                        <div class="sticky-note">
+                            <div class="sticky-note__archive">@product.ArchiveNumber @(product.IsOneOfOne ? "· 1 of 1" : "")</div>
+                            <div class="sticky-note__title">@product.Name</div>
+                            <div class="sticky-note__price">@product.Price.ToString("0") kr.</div>
+                            <p class="sticky-note__desc">@product.Description</p>
+                        </div>
+
+                        <dl class="case-file">
+                            <div class="case-file__row">
+                                <dt>Category</dt>
+                                <dd>@product.Category</dd>
+                            </div>
+                            <div class="case-file__row">
+                                <dt>Size</dt>
+                                <dd>@product.Size</dd>
+                            </div>
+                            <div class="case-file__row">
+                                <dt>Colour</dt>
+                                <dd>@product.Color</dd>
+                            </div>
+                            <div class="case-file__row">
+                                <dt>Material</dt>
+                                <dd>@product.Material</dd>
+                            </div>
+                            @if (!string.IsNullOrWhiteSpace(product.OriginStory))
+                            {
+                                <div class="case-file__story">"@product.OriginStory"</div>
+                            }
+                        </dl>
+
+                        @if (product.StockQuantity > 0)
+                        {
+                            <div class="board__buy">
+                                <QuantityStepper @bind-Value="quantity" Max="product.StockQuantity" />
+                                <button type="button" class="btn" @onclick="AddToCart">
+                                    <span aria-hidden="true">Add to bag</span>
+                                </button>
+                            </div>
+
+                            @if (product.StockQuantity <= 2)
+                            {
+                                <p class="stock-note stock-note--low">Only @product.StockQuantity left</p>
+                            }
+                            else
+                            {
+                                <p class="stock-note">@product.StockQuantity in stock</p>
+                            }
+
+                            @if (addedToCart)
+                            {
+                                <p class="form-note" style="color:var(--color-moss);">Added to cart ✓ <a href="cart" style="text-decoration:underline;">Go to cart</a></p>
+                            }
+                        }
+                        else
+                        {
+                            <p class="stock-note stock-note--low" style="margin-top:1.5rem;">Sold out — this piece has already found a new home.</p>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    @if (related is { Count: > 0 })
+    {
+        <hr class="stitch-divider" />
+        <section class="section section--dim">
+            <div class="container">
+                <div class="section__head">
+                    <h2 class="section__title">More from @product.Category</h2>
+                </div>
+                <div class="product-grid">
+                    @foreach (var item in related)
+                    {
+                        <ProductCard Product="item" />
+                    }
+                </div>
+            </div>
+        </section>
+    }
+}
+
+@code {
+    [Parameter]
+    public string Id { get; set; } = string.Empty;
+
+    private Product? product;
+    private List<Product>? related;
+    private string activeImage = string.Empty;
+    private int quantity = 1;
+    private bool addedToCart;
+    private bool notFound;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        addedToCart = false;
+        quantity = 1;
+        product = await ProductService.GetProductByIdAsync(Id);
+
+        if (product is null)
+        {
+            notFound = true;
+            return;
+        }
+
+        activeImage = product.GalleryImages.Count > 0 ? product.GalleryImages[0] : product.ImageUrl;
+        related = await ProductService.GetRelatedProductsAsync(product.Id);
+    }
+
+    private void AddToCart()
+    {
+        if (product is null) return;
+        CartService.AddItem(product, quantity);
+        addedToCart = true;
+    }
+}

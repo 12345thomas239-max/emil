@@ -1,0 +1,84 @@
+@page "/contact"
+
+<PageTitle>Contact - OS Arkiv</PageTitle>
+
+<section class="section">
+    <div class="container">
+        <div class="eyebrow">Contact</div>
+        <h1 class="section__title" style="margin-top:0.5rem;">Write to the archive</h1>
+
+        <div class="split-grid">
+            <EditForm Model="message" OnValidSubmit="HandleSubmit">
+                <DataAnnotationsValidator />
+                <ValidationSummary />
+
+                <div class="form-field">
+                    <label for="contact-name">Name</label>
+                    <InputText id="contact-name" @bind-Value="message.Name" required />
+                </div>
+                <div class="form-field">
+                    <label for="contact-email">Email</label>
+                    <InputText id="contact-email" type="email" @bind-Value="message.Email" required />
+                </div>
+                <div class="form-field">
+                    <label for="contact-message">Message</label>
+                    <textarea id="contact-message" rows="5" @bind="message.Text"></textarea>
+                </div>
+
+                <button type="submit" class="btn">Send message</button>
+
+                @if (sent)
+                {
+                    <p class="form-note" style="color:var(--color-moss); margin-top:1rem;">Thanks for reaching out — we'll get back to you soon.</p>
+                }
+            </EditForm>
+
+            <div>
+                <h3 class="section__title">Other ways to reach us</h3>
+                <p class="prose" style="margin-top:1rem;">
+                    We usually reply within 2 business days.
+                </p>
+                <dl class="case-file">
+                    <div class="case-file__row">
+                        <dt>Email</dt>
+                        <dd>hey@osarkiv.dk</dd>
+                    </div>
+                    <div class="case-file__row">
+                        <dt>Instagram</dt>
+                        <dd><a href="https://www.instagram.com/osarkiv/" target="_blank" rel="noopener">@@osarkiv</a></dd>
+                    </div>
+                    <div class="case-file__row">
+                        <dt>Workshop</dt>
+                        <dd>Copenhagen</dd>
+                    </div>
+                </dl>
+            </div>
+        </div>
+    </div>
+</section>
+
+@code {
+    private ContactFormModel message = new();
+    private bool sent;
+
+    private void HandleSubmit()
+    {
+        // Frontend-only stub - to be wired up to a real contact/email service later.
+        sent = true;
+        message.Name = string.Empty;
+        message.Email = string.Empty;
+        message.Text = string.Empty;
+    }
+
+    private class ContactFormModel
+    {
+        [System.ComponentModel.DataAnnotations.Required]
+        public string Name { get; set; } = string.Empty;
+
+        [System.ComponentModel.DataAnnotations.Required]
+        [System.ComponentModel.DataAnnotations.EmailAddress]
+        public string Email { get; set; } = string.Empty;
+
+        public string Text { get; set; } = string.Empty;
+    }
+}

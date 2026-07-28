@@ -1,0 +1,74 @@
+@page "/shop"
+@inject IProductService ProductService
+
+<PageTitle>Shop - OS Arkiv</PageTitle>
+
+<section class="section">
+    <div class="container">
+        <div class="eyebrow">The full archive</div>
+        <h1 class="section__title" style="margin-top:0.5rem;">Shop</h1>
+
+        <div class="filter-bar" style="margin-top:2rem;">
+            <button type="button" class="filter-pill @(selectedCategory == "All" ? "active" : "")" @onclick='() => SelectCategory("All")' title="All" aria-label="All">
+                <span class="filter-pill__icon" aria-hidden="true"><InkIcon Name="All" /></span>
+                <span class="sr-only">All</span>
+            </button>
+            @if (categories is not null)
+            {
+                @foreach (var category in categories)
+                {
+                    <button type="button" class="filter-pill @(selectedCategory == category ? "active" : "")" @onclick="() => SelectCategory(category)" title="@category" aria-label="@category">
+                        <span class="filter-pill__icon" aria-hidden="true"><InkIcon Name="@GetCategoryIconName(category)" /></span>
+                        <span class="sr-only">@category</span>
+                    </button>
+                }
+            }
+        </div>
+
+        @if (products is null)
+        {
+            <p class="empty-state">Loading products …</p>
+        }
+        else if (products.Count == 0)
+        {
+            <p class="empty-state">No pieces in this category right now — check back soon.</p>
+        }
+        else
+        {
+            <div class="product-grid">
+                @foreach (var product in products)
+                {
+                    <ProductCard Product="product" />
+                }
+            </div>
+        }
+    </div>
+</section>
+
+@code {
+    private List<Product>? products;
+    private List<string>? categories;
+    private string selectedCategory = "All";
+
+    protected override async Task OnInitializedAsync()
+    {
+        categories = await ProductService.GetCategoriesAsync();
+        products = await ProductService.GetByCategoryAsync(selectedCategory);
+    }
+
+    private async Task SelectCategory(string category)
+    {
+        selectedCategory = category;
+        products = await ProductService.GetByCategoryAsync(category);
+    }
+
+    private static string GetCategoryIconName(string category) => category switch
+    {
+        "Jackets" => "Jacket",
+        "Tops" => "Tops",
+        "Bottoms" => "Bottoms",
+        "Headwear" => "Headwear",
+        "Accessories" => "Accessories",
+        _ => "All"
+    };
+}

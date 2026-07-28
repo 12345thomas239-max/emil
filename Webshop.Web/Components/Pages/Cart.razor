@@ -1,0 +1,77 @@
+@page "/cart"
+@inject ICartService CartService
+@inject IProductService ProductService
+@implements IDisposable
+
+<PageTitle>Cart - OS Arkiv</PageTitle>
+
+<section class="section">
+    <div class="container">
+        <h1 class="section__title">Your cart</h1>
+
+        @if (CartService.Items.Count == 0)
+        {
+            <p class="empty-state" style="margin-top:2rem;">Your cart is empty. <a href="shop" style="text-decoration:underline;">Browse the archive</a> and find a piece.</p>
+        }
+        else
+        {
+            <div class="cart-layout" style="margin-top:2.5rem;">
+                <div class="cart-list">
+                    @foreach (var item in CartService.Items)
+                    {
+                        <div class="cart-row">
+                            <img src="@GetImage(item.ProductId)" alt="@item.ProductName" />
+                            <div>
+                                <div class="cart-row__name">@item.ProductName</div>
+                                <div class="cart-row__price">@item.UnitPrice.ToString("0") kr. / item</div>
+                                <button type="button" class="cart-row__remove" @onclick="() => Remove(item.ProductId)" aria-label="Remove item" title="Remove item">×</button>
+                            </div>
+                            <QuantityStepper Value="item.Quantity" ValueChanged="(qty) => UpdateQuantity(item.ProductId, qty)" Max="20" />
+                            <div class="cart-row__line-total">@item.LineTotal.ToString("0") kr.</div>
+                        </div>
+                    }
+                </div>
+
+                <div class="summary-card">
+                    <div class="summary-card__title">Order summary</div>
+                    <div class="summary-row">
+                        <span>Items (@CartService.TotalItemCount)</span>
+                        <span>@CartService.TotalAmount.ToString("0") kr.</span>
+                    </div>
+                    <div class="summary-row">
+                        <span>Shipping</span>
+                        <span>Calculated at checkout</span>
+                    </div>
+                    <div class="summary-row summary-row--total">
+                        <span>Total</span>
+                        <span>@CartService.TotalAmount.ToString("0") kr.</span>
+                    </div>
+                    <a href="checkout" class="btn btn--block" style="margin-top:1.5rem;">Go to checkout</a>
+                </div>
+            </div>
+        }
+    </div>
+</section>
+
+@code {
+    private Dictionary<string, string> imageLookup = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        CartService.OnChange += StateHasChanged;
+        var products = await ProductService.GetAllProductsAsync();
+        imageLookup = products.ToDictionary(p => p.Id, p => p.ImageUrl);
+    }
+
+    private string GetImage(string productId)
+        => imageLookup.TryGetValue(productId, out var url) ? url : "https://placehold.co/200x250?text=OS+Arkiv";
+
+    private void Remove(string productId) => CartService.RemoveItem(productId);
+
+    private void UpdateQuantity(string productId, int quantity) => CartService.UpdateQuantity(productId, quantity);
+
+    public void Dispose()
+    {
+        CartService.OnChange -= StateHasChanged;
+    }
+}

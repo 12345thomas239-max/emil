@@ -1,0 +1,123 @@
+@page "/checkout"
+@inject ICartService CartService
+@inject IAccountService AccountService
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+
+<PageTitle>Checkout - OS Arkiv</PageTitle>
+
+<section class="section">
+    <div class="container">
+        <h1 class="section__title">Checkout</h1>
+        <p class="form-note" style="margin-top:0.75rem;">
+            Payment isn't wired up yet — this page only shows the frontend flow.
+        </p>
+
+        @if (CartService.Items.Count == 0)
+        {
+            <p class="empty-state" style="margin-top:2rem;">Your cart is empty. <a href="shop" style="text-decoration:underline;">Browse the archive</a>.</p>
+        }
+        else
+        {
+            <div class="cart-layout" style="margin-top:2.5rem;">
+                <EditForm Model="deliveryInfo" OnValidSubmit="PlaceOrder">
+                    <DataAnnotationsValidator />
+                    <ValidationSummary />
+                    @if (!string.IsNullOrWhiteSpace(checkoutMessage))
+                    {
+                        <p class="form-note" style="color:var(--color-danger); margin-top:0.75rem;">@checkoutMessage</p>
+                    }
+
+                    <div class="form-grid">
+                        <div class="form-field form-field--full">
+                            <label for="name">Full name</label>
+                            <InputText id="name" @bind-Value="deliveryInfo.Name" required />
+                        </div>
+                        <div class="form-field form-field--full">
+                            <label for="email">Email</label>
+                            <InputText id="email" type="email" @bind-Value="deliveryInfo.Email" required />
+                        </div>
+                        <div class="form-field form-field--full">
+                            <label for="address">Delivery address</label>
+                            <InputText id="address" @bind-Value="deliveryInfo.Address" required />
+                        </div>
+                        <div class="form-field">
+                            <label for="postal">Postal code</label>
+                            <InputText id="postal" @bind-Value="deliveryInfo.PostalCode" required />
+                        </div>
+                        <div class="form-field">
+                            <label for="city">City</label>
+                            <InputText id="city" @bind-Value="deliveryInfo.City" required />
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn">Confirm order</button>
+                </EditForm>
+
+                <div class="summary-card">
+                    <div class="summary-card__title">Order summary</div>
+                    @foreach (var item in CartService.Items)
+                    {
+                        <div class="summary-row">
+                            <span>@item.ProductName × @item.Quantity</span>
+                            <span>@item.LineTotal.ToString("0") kr.</span>
+                        </div>
+                    }
+                    <div class="summary-row summary-row--total">
+                        <span>Total</span>
+                        <span>@CartService.TotalAmount.ToString("0") kr.</span>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+</section>
+
+@code {
+    private DeliveryFormModel deliveryInfo = new();
+    private string? checkoutMessage;
+    protected override void OnInitialized()
+    {
+        if (AccountService.CurrentAccount is not null)
+        {
+            deliveryInfo.Name = $"{AccountService.CurrentAccount.FirstName} {AccountService.CurrentAccount.LastName}".Trim();
+            deliveryInfo.Email = AccountService.CurrentAccount.Email;
+            deliveryInfo.Address = AccountService.CurrentAccount.Address;
+            deliveryInfo.PostalCode = AccountService.CurrentAccount.PostalCode;
+            deliveryInfo.City = AccountService.CurrentAccount.City;
+        }
+    }
+
+    private void PlaceOrder()
+    {
+        if (string.IsNullOrWhiteSpace(deliveryInfo.Address) || string.IsNullOrWhiteSpace(deliveryInfo.PostalCode) || string.IsNullOrWhiteSpace(deliveryInfo.City))
+        {
+            checkoutMessage = "Please udfyld adresse, postnummer og by.";
+            return;
+        }
+
+        CartService.Clear();
+        Navigation.NavigateTo("order-confirmation");
+    }
+
+    private class DeliveryFormModel
+    {
+        [System.ComponentModel.DataAnnotations.Required]
+        public string Name { get; set; } = string.Empty;
+
+        [System.ComponentModel.DataAnnotations.Required]
+        [System.ComponentModel.DataAnnotations.EmailAddress]
+        public string Email { get; set; } = string.Empty;
+
+        [System.ComponentModel.DataAnnotations.Required]
+        public string Address { get; set; } = string.Empty;
+
+        [System.ComponentModel.DataAnnotations.Required]
+        public string PostalCode { get; set; } = string.Empty;
+
+        [System.ComponentModel.DataAnnotations.Required]
+        public string City { get; set; } = string.Empty;
+
+        
+    }
+}

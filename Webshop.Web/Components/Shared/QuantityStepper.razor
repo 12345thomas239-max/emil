@@ -1,0 +1,39 @@
+@* Reusable quantity stepper. Calls ValueChanged when +/- is pressed. *@
+
+<div class="qty-stepper">
+    <button type="button" @onclick="Decrease" disabled="@(Value <= Min)" aria-label="Fewer">−</button>
+    <span class="qty-stepper__value">@Value</span>
+    <button type="button" @onclick="Increase" disabled="@(Value >= Max)" aria-label="More">+</button>
+</div>
+
+@code {
+    [Parameter]
+    public int Value { get; set; } = 1;
+
+    [Parameter]
+    public EventCallback<int> ValueChanged { get; set; }
+
+    [Parameter]
+    public int Min { get; set; } = 1;
+
+    [Parameter]
+    public int Max { get; set; } = 99;
+
+    private async Task Increase()
+    {
+        if (Value < Max)
+        {
+            Value++;
+            await ValueChanged.InvokeAsync(Value);
+        }
+    }
+
+    private async Task Decrease()
+    {
+        if (Value > Min)
+        {
+            Value--;
+            await ValueChanged.InvokeAsync(Value);
+        }
+    }
+}
