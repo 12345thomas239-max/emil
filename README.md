@@ -1,7 +1,7 @@
 # Webshop
 
 3-lags .NET-solution til webshop-projektet.
-
+orale bror
 ## Struktur
 
 - **Webshop.Web** - Blazor Server frontend (præsentationslag)
