@@ -35,3 +35,4 @@ resten af koden i frontend rører vi ikke.
 - Byg kurv-funktionalitet
 - Byg checkout-flow
 - Integrér betaling (Quickpay/Stripe)
+# emil
