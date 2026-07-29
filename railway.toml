@@ -1,0 +1,8 @@
+[build]
+builder = "RAILPACK"
+
+[build.env]
+DOTNET_PROJECT = "Webshop.Web/Webshop.Web.csproj"
+
+[deploy]
+startCommand = "dotnet Webshop.Web.dll"
