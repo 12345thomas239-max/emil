@@ -1,3 +1,6 @@
+[variables]
+DOTNET_VERSION = "8.0"
+
 [phases.build]
 cmds = [
   "dotnet publish Webshop.Web/Webshop.Web.csproj -c Release -o out"
