@@ -1,0 +1,7 @@
+[phases.build]
+cmds = [
+  "dotnet publish Webshop.Web/Webshop.Web.csproj -c Release -o out"
+]
+
+[start]
+cmd = "dotnet out/Webshop.Web.dll"
