@@ -20,4 +20,33 @@ document.addEventListener('click', function (e) {
     }
 });
 
+document.addEventListener('DOMContentLoaded', function () {
+    const hero = document.querySelector('.zhero--intro');
+    if (!hero) {
+        return;
+    }
+
+    const backdrop = hero.querySelector('.zhero__backdrop');
+
+    const updateHero = () => {
+        const scrollY = window.scrollY;
+        const heroTop = hero.offsetTop;
+        const heroHeight = hero.offsetHeight;
+        const triggerEnd = heroTop + heroHeight - window.innerHeight;
+        const progress = Math.min(1, Math.max(0, (scrollY - heroTop) / Math.max(1, triggerEnd - heroTop)));
+
+        const zoom = 1.12 - (progress * 0.16);
+        const blur = progress * 5;
+        const opacity = 1 - (progress * 0.18);
+
+        backdrop.style.transform = `scale(${zoom})`;
+        backdrop.style.filter = `blur(${blur}px) saturate(1.08)`;
+        backdrop.style.opacity = opacity.toFixed(3);
+    };
+
+    updateHero();
+    window.addEventListener('scroll', updateHero, { passive: true });
+    window.addEventListener('resize', updateHero);
+});
+
 

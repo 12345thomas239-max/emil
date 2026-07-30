@@ -8,7 +8,7 @@
     <header class="site-header">
         <div class="site-header__bar">
             <a href="/" class="site-header__logo">
-                <span class="site-header__logo-mark">O's Arkiv</span>
+                <img src="/uploads/Profilbillede.png" alt="O's Arkiv" class="site-header__logo-mark" />
             </a>
 
             <nav class="site-nav" data-site-nav>
@@ -17,8 +17,6 @@
                     <li><NavLink href="collections"><span class="nav-link-label">Collections</span></NavLink></li>
                     <li><NavLink href="shop"><span class="nav-link-label">Shop</span></NavLink></li>
                     <li><NavLink href="about"><span class="nav-link-label">About</span></NavLink></li>
-                    <li><NavLink href="contact"><span class="nav-link-label">Contact</span></NavLink></li>
-                    <li><NavLink href="profile"><span class="nav-link-label">Profile</span></NavLink></li>
                     @if (AccountService.CurrentAccount?.IsAdmin == true)
                     {
                         <li><NavLink href="admin"><span class="nav-link-label">Admin</span></NavLink></li>
@@ -27,6 +25,9 @@
             </nav>
 
             <div class="header-actions">
+                <NavLink href="profile" class="profile-pill" aria-label="Profile">
+                    <span aria-hidden="true"><InkIcon Name="Profile" /></span>
+                </NavLink>
                 <a href="cart" class="cart-pill" aria-label="Cart">
                     <span aria-hidden="true"><InkIcon Name="Cart" /></span>
                     <span class="sr-only">Cart</span>

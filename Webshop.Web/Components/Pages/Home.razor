@@ -3,59 +3,18 @@
 
 <PageTitle>OS Arkiv</PageTitle>
 
-<section class="zhero">
-    <div class="container">
-        <span class="zhero__mark">Emil Overgaards sexshop</span>
-        <h1 class="zhero__title">O's<br /><span class="mark-underline">Arkiv</span></h1>
-        <div class="zhero__actions">
-            <a href="shop" class="btn">Shop</a>
-            @if (latestCollection is not null)
-            {
-                <a href="@($"collections/{latestCollection.Number}")" class="btn btn--ghost">Latest collection →</a>
-            }
-        </div>
-    </div>
-</section>
-
-@if (rows is not null && rows.Count > 0)
-{
-    <div class="container">
-        @for (var i = 0; i < rows.Count; i++)
-        {
-            var item = rows[i];
-            var isRight = i % 2 == 1;
-            var offsetClass = i % 3 == 0 ? "zrow--offset-a" : i % 3 == 1 ? "zrow--offset-b" : "zrow--offset-c";
-            <div class="zrow @(isRight ? "zrow--right" : "zrow--left") @offsetClass">
-                <div class="zrow__frame">
-                    <img src="@item.ImageUrl" alt="@item.Name" loading="lazy" />
-                    <span class="zrow__tag">@item.ArchiveNumber</span>
-                </div>
-                <div class="zrow__caption">
-                    <span class="zrow__index">0@(i + 1) @item.Category</span>
-                    <br />
-                    <span class="zrow__note">@item.Name</span>
-                </div>
-            </div>
-        }
-    </div>
-}
-
-<hr class="stitch-divider" />
-
-<section class="zclose">
-    <div class="container">
-        <a href="collections" class="btn">See all 7 collections</a>
+<section class="zhero zhero--intro" aria-label="Forsidebillede">
+    <div class="zhero__backdrop" aria-hidden="true"></div>
+    <div class="zhero__content">
+        <a href="shop" class="zhero__cta">Shop Now</a>
     </div>
 </section>
 
 @code {
-    private List<Product>? rows;
     private Collection? latestCollection;
 
     protected override async Task OnInitializedAsync()
     {
-        var featured = await ProductService.GetFeaturedProductsAsync();
-        rows = featured.Take(3).ToList();
         latestCollection = await ProductService.GetLatestCollectionAsync();
     }
 }
