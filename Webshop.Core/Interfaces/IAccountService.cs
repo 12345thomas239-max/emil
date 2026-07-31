@@ -16,6 +16,8 @@ public interface IAccountService
 
     bool RestoreSession(string email);
 
+    bool AddOrder(OrderView order, out string errorMessage);
+
     bool UpdateProfile(
         string firstName,
         string lastName,

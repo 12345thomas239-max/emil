@@ -343,6 +343,38 @@ public sealed class MongoAccountService : IAccountService
         return true;
     }
 
+    public bool AddOrder(OrderView order, out string errorMessage)
+    {
+        errorMessage = string.Empty;
+
+        if (CurrentAccount is null)
+        {
+            errorMessage = "You must be logged in to place an order.";
+            return false;
+        }
+
+        var currentKey = NormalizeEmail(CurrentAccount.Email);
+        var accountDoc = _mongoCollection.Find(Builders<BsonDocument>.Filter.Eq("Email", currentKey)).FirstOrDefault();
+        var account = accountDoc is null ? null : MapToAccountRecord(accountDoc);
+        if (account is null)
+        {
+            errorMessage = "Current account could not be found.";
+            return false;
+        }
+
+        if (account.Orders is null)
+        {
+            account.Orders = new List<OrderView>();
+        }
+
+        account.Orders.Insert(0, order);
+        PersistAccount(account, currentKey);
+
+        CurrentAccount = ToAccountView(account);
+        NotifyChange();
+        return true;
+    }
+
     private void PersistAccount(AccountRecord account, string? previousKey = null)
     {
         if (!string.IsNullOrWhiteSpace(previousKey) && !string.Equals(previousKey, account.Email, StringComparison.OrdinalIgnoreCase))

@@ -10,16 +10,14 @@
 
         <div class="filter-bar" style="margin-top:2rem;">
             <button type="button" class="filter-pill @(selectedCategory == "All" ? "active" : "")" @onclick='() => SelectCategory("All")' title="All" aria-label="All">
-                <span class="filter-pill__icon" aria-hidden="true"><InkIcon Name="All" /></span>
-                <span class="sr-only">All</span>
+                All
             </button>
             @if (categories is not null)
             {
                 @foreach (var category in categories)
                 {
                     <button type="button" class="filter-pill @(selectedCategory == category ? "active" : "")" @onclick="() => SelectCategory(category)" title="@category" aria-label="@category">
-                        <span class="filter-pill__icon" aria-hidden="true"><InkIcon Name="@GetCategoryIconName(category)" /></span>
-                        <span class="sr-only">@category</span>
+                        @category
                     </button>
                 }
             }

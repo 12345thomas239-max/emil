@@ -18,6 +18,7 @@ builder.Services.AddScoped<IProductService, MongoProductService>();
 // gemmes et andet sted end i hukommelsen, uden at siderne der bruger den ændres.
 builder.Services.AddScoped<ICartService, CartService>();
 builder.Services.AddScoped<IAccountService, MongoAccountService>();
+builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<AdminContentStore>();
 
 var app = builder.Build();

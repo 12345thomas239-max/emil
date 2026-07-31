@@ -1,4 +1,5 @@
 @page "/profile"
+@using Microsoft.AspNetCore.WebUtilities
 @inject IAccountService AccountService
 @inject IJSRuntime JS
 @inject NavigationManager Navigation
@@ -14,6 +15,13 @@
             </div>
 
         </div>
+
+        @if (missingDeliveryAddress)
+        {
+            <div class="form-note" style="margin-bottom:1rem; color:var(--color-accent);">
+                Please add your delivery address, postal code and city in your profile before you can complete checkout.
+            </div>
+        }
 
         @if (currentAccount is null)
         {
@@ -366,6 +374,8 @@
     private string? loginMessage;
     private string? registerMessage;
     private string? profileMessage;
+    private string? returnUrl;
+    private bool missingDeliveryAddress;
     private bool showLoginPassword;
     private bool showRegisterPassword;
     private bool showProfilePassword;
@@ -387,6 +397,27 @@
 
     protected override Task OnInitializedAsync()
     {
+        // Capture optional returnUrl query parameter so we can redirect after login/register
+        try
+        {
+            var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
+            var q = QueryHelpers.ParseQuery(uri.Query);
+            if (q.TryGetValue("returnUrl", out var rv))
+            {
+                returnUrl = rv;
+            }
+
+            if (q.TryGetValue("missingDelivery", out var missingDeliveryValue) &&
+                bool.TryParse(missingDeliveryValue, out var missingDelivery))
+            {
+                missingDeliveryAddress = missingDelivery;
+            }
+        }
+        catch
+        {
+            // ignore parse issues
+        }
+
         SyncFromAccountService();
         return Task.CompletedTask;
     }
@@ -406,6 +437,12 @@
             profileMessage = null;
             SyncFromAccountService();
             await SaveAccountSessionAsync();
+            if (!string.IsNullOrWhiteSpace(returnUrl))
+            {
+                Navigation.NavigateTo(returnUrl);
+                return;
+            }
+
             return;
         }
 
@@ -424,6 +461,12 @@
             profileMessage = null;
             SyncFromAccountService();
             await SaveAccountSessionAsync();
+            if (!string.IsNullOrWhiteSpace(returnUrl))
+            {
+                Navigation.NavigateTo(returnUrl);
+                return;
+            }
+
             return;
         }
 

@@ -49,4 +49,25 @@ document.addEventListener('DOMContentLoaded', function () {
     window.addEventListener('resize', updateHero);
 });
 
+// Back to top behavior (global)
+document.addEventListener('DOMContentLoaded', function () {
+    const backBtn = document.getElementById('backToTop');
+    if (!backBtn) return;
+
+    const toggleVisibility = () => {
+        if (window.scrollY > 600) {
+            backBtn.classList.add('visible');
+        } else {
+            backBtn.classList.remove('visible');
+        }
+    };
+
+    backBtn.addEventListener('click', function () {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+
+    toggleVisibility();
+    window.addEventListener('scroll', toggleVisibility, { passive: true });
+});
+
 

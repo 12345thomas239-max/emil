@@ -1,0 +1,41 @@
+@page "/archive"
+@inject Webshop.Core.Interfaces.IProductService ProductService
+
+<PageTitle>Archive - OS Arkiv</PageTitle>
+
+<section class="archive-section">
+    <div class="container archive-container">
+        @if (products is null)
+        {
+            <p class="empty-state">Loading archive…</p>
+        }
+        else if (!products.Any())
+        {
+            <p class="empty-state">No items found.</p>
+        }
+        else
+        {
+            for (var i = 0; i < products.Count; i++)
+            {
+                var p = products[i];
+                var right = i % 2 == 1;
+                <div class="archive-row @(right ? "archive-row--right" : "archive-row--left")">
+                    <img src="@p.ImageUrl" alt="@p.ArchiveNumber" loading="lazy" />
+                </div>
+            }
+        }
+    </div>
+</section>
+
+<button class="back-to-top" id="backToTop" aria-label="Back to top">Top</button>
+
+@code {
+    private List<Webshop.Shared.Models.Product>? products;
+
+    protected override async Task OnInitializedAsync()
+    {
+        products = await ProductService.GetAllProductsAsync();
+        // Show newest first: reverse the incoming order so newest added appears first
+        products.Reverse();
+    }
+}

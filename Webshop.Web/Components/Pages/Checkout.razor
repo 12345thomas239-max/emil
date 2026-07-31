@@ -1,6 +1,7 @@
 @page "/checkout"
 @inject ICartService CartService
 @inject IAccountService AccountService
+@inject IEmailService EmailService
 @inject IJSRuntime JS
 @inject NavigationManager Navigation
 
@@ -78,17 +79,29 @@
     private string? checkoutMessage;
     protected override void OnInitialized()
     {
-        if (AccountService.CurrentAccount is not null)
+        if (AccountService.CurrentAccount is null)
         {
-            deliveryInfo.Name = $"{AccountService.CurrentAccount.FirstName} {AccountService.CurrentAccount.LastName}".Trim();
-            deliveryInfo.Email = AccountService.CurrentAccount.Email;
-            deliveryInfo.Address = AccountService.CurrentAccount.Address;
-            deliveryInfo.PostalCode = AccountService.CurrentAccount.PostalCode;
-            deliveryInfo.City = AccountService.CurrentAccount.City;
+            // Require sign-in before checking out; redirect to profile page with returnUrl
+            Navigation.NavigateTo($"profile?returnUrl=checkout");
+            return;
         }
+
+        if (string.IsNullOrWhiteSpace(AccountService.CurrentAccount.Address) ||
+            string.IsNullOrWhiteSpace(AccountService.CurrentAccount.PostalCode) ||
+            string.IsNullOrWhiteSpace(AccountService.CurrentAccount.City))
+        {
+            Navigation.NavigateTo($"profile?returnUrl=checkout&missingDelivery=1");
+            return;
+        }
+
+        deliveryInfo.Name = $"{AccountService.CurrentAccount.FirstName} {AccountService.CurrentAccount.LastName}".Trim();
+        deliveryInfo.Email = AccountService.CurrentAccount.Email;
+        deliveryInfo.Address = AccountService.CurrentAccount.Address;
+        deliveryInfo.PostalCode = AccountService.CurrentAccount.PostalCode;
+        deliveryInfo.City = AccountService.CurrentAccount.City;
     }
 
-    private void PlaceOrder()
+    private async Task PlaceOrder()
     {
         if (string.IsNullOrWhiteSpace(deliveryInfo.Address) || string.IsNullOrWhiteSpace(deliveryInfo.PostalCode) || string.IsNullOrWhiteSpace(deliveryInfo.City))
         {
@@ -96,8 +109,46 @@
             return;
         }
 
+        var order = CreateOrder();
+        if (!AccountService.AddOrder(order, out var orderError))
+        {
+            checkoutMessage = orderError;
+            return;
+        }
+
+        await EmailService.SendOrderConfirmationAsync(deliveryInfo.Email, order);
         CartService.Clear();
         Navigation.NavigateTo("order-confirmation");
+    }
+
+    private OrderView CreateOrder()
+    {
+        var items = CartService.Items
+            .Select(item => new OrderItemView(item.ProductName, item.Quantity, item.UnitPrice))
+            .ToList();
+
+        var subtotal = CartService.Items.Sum(item => item.LineTotal);
+        var receiptLines = new List<ReceiptLineView>
+        {
+            new("Subtotal", subtotal),
+            new("Shipping", 0m),
+            new("Tax", 0m),
+            new("Total", subtotal)
+        };
+
+        var orderNumber = $"OS-{DateTime.UtcNow:yyyyMMddHHmmss}";
+        var orderId = Guid.NewGuid().ToString();
+
+        return new OrderView(
+            orderId,
+            orderNumber,
+            DateTime.UtcNow,
+            "Processing",
+            "Awaiting shipping",
+            CartService.TotalItemCount,
+            CartService.TotalAmount,
+            items,
+            receiptLines);
     }
 
     private class DeliveryFormModel
