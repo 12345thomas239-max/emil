@@ -1,6 +1,7 @@
 @page "/profile"
 @using Microsoft.AspNetCore.WebUtilities
 @inject IAccountService AccountService
+@inject IEmailService EmailService
 @inject IJSRuntime JS
 @inject NavigationManager Navigation
 
@@ -25,11 +26,11 @@
 
         @if (currentAccount is null)
         {
-            <div class="profile-empty-state">
+            <div class="profile-empty-state profile-empty-state--signed-out">
                 <span class="profile-empty-state__icon" aria-hidden="true"><InkIcon Name="Profile" /></span>
-                <h2 class="profile-empty-state__title">Nothing here to show</h2>
+                <h2 class="profile-empty-state__title">You need to sign in first</h2>
                 <p class="prose" style="margin:0;">
-                    You are not signed in yet, so your orders and profile details are hidden.
+                    Sign in or create an account to view your profile details and order history.
                 </p>
             </div>
 
@@ -45,7 +46,7 @@
                         </button>
                     </div>
 
-                    @if (!showRegisterForm)
+                    @if (!showRegisterForm && !showResetPassword)
                     {
                         <form @onsubmit="HandleLogin" @onsubmit:preventDefault="true">
                             <div class="form-field">
@@ -65,11 +66,37 @@
                                 <button type="submit" class="btn">Sign in</button>
                             </div>
 
+                            <button type="button" class="auth-switch-link" @onclick="ShowResetPassword" style="margin-top:0.75rem;">Forgot your password?</button>
+
                             <p class="form-note" style="margin-top:0.85rem;">Admin demo: email <strong>admin</strong> · password <strong>admin</strong></p>
 
                             @if (!string.IsNullOrWhiteSpace(loginMessage))
                             {
                                 <p class="form-note" style="color:var(--color-ink); margin-top:0.85rem;">@loginMessage</p>
+                            }
+                        </form>
+                    }
+                    else if (showResetPassword)
+                    {
+                        <form @onsubmit="HandleRequestPasswordReset" @onsubmit:preventDefault="true">
+                            <div class="form-field">
+                                <label for="reset-email">Email</label>
+                                <input id="reset-email" type="email" @bind="resetEmail" />
+                            </div>
+
+                            <div class="auth-actions">
+                                <button type="submit" class="btn">Send reset link</button>
+                            </div>
+
+                            <button type="button" class="auth-switch-link" @onclick="HideResetPassword" style="margin-top:0.75rem;">Back to sign in</button>
+
+                            @if (!string.IsNullOrWhiteSpace(resetMessage))
+                            {
+                                <p class="form-note" style="margin-top:0.85rem;">@resetMessage</p>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(resetErrorMessage))
+                            {
+                                <p class="form-note" style="color:var(--color-danger); margin-top:0.85rem;">@resetErrorMessage</p>
                             }
                         </form>
                     }
@@ -373,6 +400,8 @@
     private AccountView? currentAccount;
     private string? loginMessage;
     private string? registerMessage;
+    private string? resetMessage;
+    private string? resetErrorMessage;
     private string? profileMessage;
     private string? returnUrl;
     private bool missingDeliveryAddress;
@@ -380,6 +409,8 @@
     private bool showRegisterPassword;
     private bool showProfilePassword;
     private bool showRegisterForm;
+    private bool showResetPassword;
+    private string resetEmail = string.Empty;
     private string registerPhoneCountryCode = "+45";
     private string profilePhoneCountryCode = "+45";
     private string? selectedOrderId;
@@ -425,7 +456,41 @@
 
     private void ToggleAuthMode()
     {
+        showResetPassword = false;
         showRegisterForm = !showRegisterForm;
+    }
+
+    private void ShowResetPassword()
+    {
+        showResetPassword = true;
+        loginMessage = null;
+        resetMessage = null;
+        resetErrorMessage = null;
+    }
+
+    private void HideResetPassword()
+    {
+        showResetPassword = false;
+        resetMessage = null;
+        resetErrorMessage = null;
+    }
+
+    private async Task HandleRequestPasswordReset()
+    {
+        if (AccountService.RequestPasswordReset(resetEmail, out var errorMessage, out var resetToken))
+        {
+            resetMessage = "If that email exists, a reset link has been sent.";
+            resetErrorMessage = null;
+            if (!string.IsNullOrWhiteSpace(resetToken))
+            {
+                var resetLink = $"{Navigation.BaseUri}reset-password?email={Uri.EscapeDataString(resetEmail)}&token={Uri.EscapeDataString(resetToken)}";
+                await EmailService.SendPasswordResetAsync(resetEmail, resetLink);
+            }
+            return;
+        }
+
+        resetMessage = null;
+        resetErrorMessage = errorMessage;
     }
 
     private async Task HandleLogin()

@@ -14,11 +14,134 @@
             Payment isn't wired up yet — this page only shows the frontend flow.
         </p>
 
-        @if (CartService.Items.Count == 0)
+        @if (showAuthSection)
+        {
+            <div class="auth-shell" style="margin-top:2rem;">
+                <section class="auth-card">
+                    <div class="auth-card__head">
+                        <div>
+                            <h2 class="section__title">@(showRegisterForm ? "Create account" : showResetPassword ? "Reset password" : "Sign in")</h2>
+                            <span class="auth-card__note">@(showRegisterForm ? "New customer" : showResetPassword ? "Enter your email to reset" : "Existing account")</span>
+                        </div>
+                        @if (!showResetPassword)
+                        {
+                            <button type="button" class="auth-switch-link" @onclick="ToggleAuthMode">
+                                @(showRegisterForm ? "Already have an account? Sign in" : "No account yet? Create one")
+                            </button>
+                        }
+                    </div>
+
+                    @if (!showRegisterForm && !showResetPassword)
+                    {
+                        <form @onsubmit="HandleLogin" @onsubmit:preventDefault="true">
+                            <div class="form-field">
+                                <label for="login-email">Email or username</label>
+                                <input id="login-email" @bind="loginModel.Email" />
+                            </div>
+                            <div class="form-field">
+                                <label for="login-password">Password</label>
+                                <input id="login-password" type="password" @bind="loginModel.Password" />
+                            </div>
+
+                            <div class="auth-actions">
+                                <button type="submit" class="btn">Sign in</button>
+                            </div>
+
+                            <button type="button" class="auth-switch-link" @onclick="ShowResetPassword" style="margin-top:0.75rem;">Forgot your password?</button>
+
+                            @if (!string.IsNullOrWhiteSpace(loginMessage))
+                            {
+                                <p class="form-note" style="margin-top:0.85rem;">@loginMessage</p>
+                            }
+                        </form>
+                    }
+                    else if (showResetPassword)
+                    {
+                        <form @onsubmit="HandleRequestPasswordReset" @onsubmit:preventDefault="true">
+                            <div class="form-field">
+                                <label for="reset-email">Email</label>
+                                <input id="reset-email" type="email" @bind="resetEmail" />
+                            </div>
+
+                            <div class="auth-actions">
+                                <button type="submit" class="btn">Send reset link</button>
+                            </div>
+
+                            <button type="button" class="auth-switch-link" @onclick="HideResetPassword" style="margin-top:0.75rem;">Back to sign in</button>
+
+                            @if (!string.IsNullOrWhiteSpace(resetMessage))
+                            {
+                                <p class="form-note" style="margin-top:0.85rem;">@resetMessage</p>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(resetErrorMessage))
+                            {
+                                <p class="form-note" style="color:var(--color-danger); margin-top:0.85rem;">@resetErrorMessage</p>
+                            }
+                        </form>
+                    }
+                    else
+                    {
+                        <EditForm Model="registerModel" OnValidSubmit="HandleRegister">
+                            <DataAnnotationsValidator />
+                            <ValidationSummary />
+
+                            <div class="form-grid">
+                                <div class="form-field">
+                                    <label for="register-first-name">First name</label>
+                                    <input id="register-first-name" @bind="registerModel.FirstName" />
+                                </div>
+                                <div class="form-field">
+                                    <label for="register-last-name">Last name</label>
+                                    <input id="register-last-name" @bind="registerModel.LastName" />
+                                </div>
+                            </div>
+
+                            <div class="form-field">
+                                <label for="register-email">Email</label>
+                                <input id="register-email" type="email" @bind="registerModel.Email" />
+                            </div>
+                            <div class="form-field">
+                                <label for="register-phone">Phone number</label>
+                                <input id="register-phone" type="tel" @bind="registerModel.Phone" />
+                            </div>
+                            <div class="form-field">
+                                <label for="register-password">Password</label>
+                                <input id="register-password" type="password" @bind="registerModel.Password" />
+                            </div>
+                            <div class="form-field">
+                                <label for="register-password-confirm">Repeat password</label>
+                                <input id="register-password-confirm" type="password" @bind="registerModel.ConfirmPassword" />
+                            </div>
+                            <div class="form-field">
+                                <label for="register-address">Delivery address</label>
+                                <input id="register-address" @bind="registerModel.Address" />
+                            </div>
+                            <div class="form-field">
+                                <label for="register-postal">Postal code</label>
+                                <input id="register-postal" @bind="registerModel.PostalCode" />
+                            </div>
+                            <div class="form-field">
+                                <label for="register-city">City</label>
+                                <input id="register-city" @bind="registerModel.City" />
+                            </div>
+
+                            <button type="submit" class="btn btn--block">Create account</button>
+
+                            @if (!string.IsNullOrWhiteSpace(registerMessage))
+                            {
+                                <p class="form-note" style="margin-top:0.85rem;">@registerMessage</p>
+                            }
+                        </EditForm>
+                    }
+                </section>
+            </div>
+        }
+
+        @if (!showAuthSection && CartService.Items.Count == 0)
         {
             <p class="empty-state" style="margin-top:2rem;">Your cart is empty. <a href="shop" style="text-decoration:underline;">Browse the archive</a>.</p>
         }
-        else
+        else if (!showAuthSection)
         {
             <div class="cart-layout" style="margin-top:2.5rem;">
                 <EditForm Model="deliveryInfo" OnValidSubmit="PlaceOrder">
@@ -77,12 +200,23 @@
 @code {
     private DeliveryFormModel deliveryInfo = new();
     private string? checkoutMessage;
+    private bool showAuthSection;
+    private bool showRegisterForm;
+    private bool showResetPassword;
+    private string resetEmail = string.Empty;
+    private string? loginMessage;
+    private string? registerMessage;
+    private string? resetMessage;
+    private string? resetErrorMessage;
+
+    private readonly LoginModel loginModel = new();
+    private readonly CheckoutRegisterModel registerModel = new();
+
     protected override void OnInitialized()
     {
         if (AccountService.CurrentAccount is null)
         {
-            // Require sign-in before checking out; redirect to profile page with returnUrl
-            Navigation.NavigateTo($"profile?returnUrl=checkout");
+            showAuthSection = true;
             return;
         }
 
@@ -105,7 +239,7 @@
     {
         if (string.IsNullOrWhiteSpace(deliveryInfo.Address) || string.IsNullOrWhiteSpace(deliveryInfo.PostalCode) || string.IsNullOrWhiteSpace(deliveryInfo.City))
         {
-            checkoutMessage = "Please udfyld adresse, postnummer og by.";
+            checkoutMessage = "Please fill in address, postal code and city.";
             return;
         }
 
@@ -119,6 +253,143 @@
         await EmailService.SendOrderConfirmationAsync(deliveryInfo.Email, order);
         CartService.Clear();
         Navigation.NavigateTo("order-confirmation");
+    }
+
+    private void ToggleAuthMode()
+    {
+        showResetPassword = false;
+        showRegisterForm = !showRegisterForm;
+        loginMessage = null;
+        registerMessage = null;
+        resetMessage = null;
+        resetErrorMessage = null;
+    }
+
+    private void ShowResetPassword()
+    {
+        showResetPassword = true;
+        loginMessage = null;
+        resetMessage = null;
+        resetErrorMessage = null;
+    }
+
+    private void HideResetPassword()
+    {
+        showResetPassword = false;
+        resetMessage = null;
+        resetErrorMessage = null;
+    }
+
+    private async Task HandleRequestPasswordReset()
+    {
+        if (AccountService.RequestPasswordReset(resetEmail, out var errorMessage, out var resetToken))
+        {
+            resetMessage = "If that email exists, a reset link has been sent.";
+            resetErrorMessage = null;
+            if (!string.IsNullOrWhiteSpace(resetToken))
+            {
+                var resetLink = $"{Navigation.BaseUri}reset-password?email={Uri.EscapeDataString(resetEmail)}&token={Uri.EscapeDataString(resetToken)}";
+                await EmailService.SendPasswordResetAsync(resetEmail, resetLink);
+            }
+            return;
+        }
+
+        resetMessage = null;
+        resetErrorMessage = errorMessage;
+    }
+
+    private async Task HandleLogin()
+    {
+        if (AccountService.Login(loginModel.Email, loginModel.Password, out var errorMessage))
+        {
+            loginMessage = null;
+            registerMessage = null;
+            resetMessage = null;
+            resetErrorMessage = null;
+            showAuthSection = false;
+            SyncFromAccount();
+            await SaveAccountSessionAsync();
+            return;
+        }
+
+        loginMessage = errorMessage;
+    }
+
+    private async Task HandleRegister()
+    {
+        if (!AccountService.Register(registerModel.FirstName, registerModel.LastName, registerModel.Phone, registerModel.Email, registerModel.Password, registerModel.Address, registerModel.PostalCode, registerModel.City, out var errorMessage))
+        {
+            registerMessage = errorMessage;
+            return;
+        }
+
+        registerMessage = "Account created. You are now signed in.";
+        loginMessage = null;
+        showAuthSection = false;
+        SyncFromAccount();
+        await SaveAccountSessionAsync();
+    }
+
+    private void SyncFromAccount()
+    {
+        if (AccountService.CurrentAccount is not null)
+        {
+            deliveryInfo.Name = $"{AccountService.CurrentAccount.FirstName} {AccountService.CurrentAccount.LastName}".Trim();
+            deliveryInfo.Email = AccountService.CurrentAccount.Email;
+            deliveryInfo.Address = AccountService.CurrentAccount.Address;
+            deliveryInfo.PostalCode = AccountService.CurrentAccount.PostalCode;
+            deliveryInfo.City = AccountService.CurrentAccount.City;
+        }
+    }
+
+    private async Task SaveAccountSessionAsync()
+    {
+        if (AccountService.CurrentAccount is not null)
+        {
+            await JS.InvokeVoidAsync("sessionStorage.setItem", "osarkiv-account-email", AccountService.CurrentAccount.Email);
+        }
+    }
+
+    private sealed class LoginModel
+    {
+        [System.ComponentModel.DataAnnotations.Required]
+        public string Email { get; set; } = string.Empty;
+
+        [System.ComponentModel.DataAnnotations.Required]
+        public string Password { get; set; } = string.Empty;
+    }
+
+    private sealed class CheckoutRegisterModel
+    {
+        [System.ComponentModel.DataAnnotations.Required]
+        public string FirstName { get; set; } = string.Empty;
+
+        [System.ComponentModel.DataAnnotations.Required]
+        public string LastName { get; set; } = string.Empty;
+
+        [System.ComponentModel.DataAnnotations.Required]
+        public string Phone { get; set; } = string.Empty;
+
+        [System.ComponentModel.DataAnnotations.Required]
+        [System.ComponentModel.DataAnnotations.EmailAddress]
+        public string Email { get; set; } = string.Empty;
+
+        [System.ComponentModel.DataAnnotations.Required]
+        public string Address { get; set; } = string.Empty;
+
+        [System.ComponentModel.DataAnnotations.Required]
+        public string PostalCode { get; set; } = string.Empty;
+
+        [System.ComponentModel.DataAnnotations.Required]
+        public string City { get; set; } = string.Empty;
+
+        [System.ComponentModel.DataAnnotations.Required]
+        [System.ComponentModel.DataAnnotations.MinLength(8)]
+        public string Password { get; set; } = string.Empty;
+
+        [System.ComponentModel.DataAnnotations.Required]
+        [System.ComponentModel.DataAnnotations.Compare(nameof(Password), ErrorMessage = "Passwords do not match.")]
+        public string ConfirmPassword { get; set; } = string.Empty;
     }
 
     private OrderView CreateOrder()

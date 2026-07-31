@@ -189,6 +189,50 @@ main {
     color: var(--color-ink-faint);
 }
 
+.page-alert {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 1rem 1.15rem;
+    border-radius: 1rem;
+    border: 1px solid rgba(17, 17, 17, 0.08);
+    background: #fff;
+    color: var(--color-ink);
+}
+
+.page-alert__content p {
+    margin: 0.35rem 0 0;
+    color: var(--color-ink-faint);
+}
+
+@media (min-width: 720px) {
+    .page-alert {
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+    }
+}
+
+.profile-empty-state.profile-empty-state--signed-out {
+    background: #fff;
+    border-color: rgba(17, 17, 17, 0.08);
+}
+
+.profile-empty-state__icon {
+    width: 2.6rem;
+    height: 2.6rem;
+    border-radius: 999px;
+    background: var(--color-paper);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-ink);
+}
+
+.profile-empty-state__title {
+    font-size: 1.55rem;
+}
+
 .empty-state {
     margin: 0;
     padding: 0.9rem 0;

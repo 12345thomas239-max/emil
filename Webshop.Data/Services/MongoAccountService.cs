@@ -133,6 +133,88 @@ public sealed class MongoAccountService : IAccountService
         return true;
     }
 
+    public bool RequestPasswordReset(string email, out string errorMessage, out string resetToken)
+    {
+        errorMessage = string.Empty;
+        resetToken = string.Empty;
+
+        var normalizedEmail = NormalizeEmail(email);
+        if (string.IsNullOrWhiteSpace(normalizedEmail))
+        {
+            errorMessage = "Enter your email address.";
+            return false;
+        }
+
+        var accountDoc = _mongoCollection.Find(Builders<BsonDocument>.Filter.Eq("Email", normalizedEmail)).FirstOrDefault();
+        if (accountDoc is null)
+        {
+            errorMessage = "If that email exists, a reset link will be sent.";
+            return true;
+        }
+
+        var account = MapToAccountRecord(accountDoc);
+        resetToken = GeneratePasswordResetToken();
+        account.ResetToken = resetToken;
+        account.ResetTokenExpiresAt = DateTime.UtcNow.AddHours(1);
+        PersistAccount(account);
+
+        if (CurrentAccount is not null && string.Equals(NormalizeEmail(CurrentAccount.Email), normalizedEmail, StringComparison.OrdinalIgnoreCase))
+        {
+            CurrentAccount = ToAccountView(account);
+            NotifyChange();
+        }
+
+        return true;
+    }
+
+    public bool ResetPassword(string email, string resetToken, string newPassword, out string errorMessage)
+    {
+        errorMessage = string.Empty;
+
+        var normalizedEmail = NormalizeEmail(email);
+        if (string.IsNullOrWhiteSpace(normalizedEmail) || string.IsNullOrWhiteSpace(resetToken))
+        {
+            errorMessage = "Invalid reset link.";
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(newPassword) || newPassword.Length < 8)
+        {
+            errorMessage = "Password must be at least 8 characters.";
+            return false;
+        }
+
+        var accountDoc = _mongoCollection.Find(Builders<BsonDocument>.Filter.Eq("Email", normalizedEmail)).FirstOrDefault();
+        if (accountDoc is null)
+        {
+            errorMessage = "Invalid reset link.";
+            return false;
+        }
+
+        var account = MapToAccountRecord(accountDoc);
+        if (!string.Equals(account.ResetToken, resetToken, StringComparison.Ordinal) || account.ResetTokenExpiresAt < DateTime.UtcNow)
+        {
+            errorMessage = "Invalid or expired reset link.";
+            return false;
+        }
+
+        var salt = RandomNumberGenerator.GetBytes(16);
+        account.PasswordSaltBase64 = Convert.ToBase64String(salt);
+        account.PasswordHash = HashPassword(newPassword, salt, PasswordIterations);
+        account.PasswordIterations = PasswordIterations;
+        account.ResetToken = string.Empty;
+        account.ResetTokenExpiresAt = default;
+        PersistAccount(account);
+
+        if (CurrentAccount is not null && string.Equals(NormalizeEmail(CurrentAccount.Email), normalizedEmail, StringComparison.OrdinalIgnoreCase))
+        {
+            CurrentAccount = ToAccountView(account);
+            NotifyChange();
+        }
+
+        return true;
+    }
+
     public void Logout()
     {
         CurrentAccount = null;
@@ -420,6 +502,12 @@ public sealed class MongoAccountService : IAccountService
             account.PostalCode,
             account.City);
 
+    private static string GeneratePasswordResetToken()
+    {
+        var tokenBytes = RandomNumberGenerator.GetBytes(32);
+        return Convert.ToBase64String(tokenBytes);
+    }
+
     private static string NormalizeEmail(string email) => email.Trim().ToLowerInvariant();
 
     private static AccountRecord MapToAccountRecord(BsonDocument doc)
@@ -449,6 +537,8 @@ public sealed class MongoAccountService : IAccountService
             if (doc.TryGetValue("Address", out var a) && a.IsString) acc.Address = a.AsString;
             if (doc.TryGetValue("PostalCode", out var pc) && pc.IsString) acc.PostalCode = pc.AsString;
             if (doc.TryGetValue("City", out var c) && c.IsString) acc.City = c.AsString;
+            if (doc.TryGetValue("ResetToken", out var rt) && rt.IsString) acc.ResetToken = rt.AsString;
+            if (doc.TryGetValue("ResetTokenExpiresAt", out var rte) && rte.IsValidDateTime) acc.ResetTokenExpiresAt = rte.ToUniversalTime();
 
             acc.Orders = new List<OrderView>();
             return acc;

@@ -54,6 +54,8 @@ public sealed record AccountRecord
     public string Address { get; set; } = string.Empty;
     public string PostalCode { get; set; } = string.Empty;
     public string City { get; set; } = string.Empty;
+    public string ResetToken { get; set; } = string.Empty;
+    public DateTime ResetTokenExpiresAt { get; set; }
 
     public List<OrderView> Orders { get; set; } = new();
 }

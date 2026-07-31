@@ -16,6 +16,10 @@ public interface IAccountService
 
     bool RestoreSession(string email);
 
+    bool RequestPasswordReset(string email, out string errorMessage, out string resetToken);
+
+    bool ResetPassword(string email, string resetToken, string newPassword, out string errorMessage);
+
     bool AddOrder(OrderView order, out string errorMessage);
 
     bool UpdateProfile(
